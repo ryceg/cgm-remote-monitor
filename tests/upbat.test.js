@@ -13,7 +13,7 @@ describe('Uploader Battery', () => {
     ctx.language.set('en');
     ctx.levels = levels;
     var sandbox = require('../lib/sandbox')(ctx);
-    
+
     var sbx = sandbox.clientInit(ctx, Date.now(), data);
 
     sbx.offerProperty = function mockedOfferProperty (name, setter) {
@@ -82,7 +82,7 @@ describe('Uploader Battery', () => {
           expect(options.hide).toBe(true);
           done();
         }
-      }, 
+      },
       language: require('../lib/language')(fs),
       levels: levels
     };
@@ -113,7 +113,7 @@ describe('Uploader Battery', () => {
     upbat.virtAsst.intentHandlers[0].intentHandler(function next(title, response) {
       expect(title).toBe('Uploader Battery');
       expect(response).toBe('Your uploader battery is at 20%');
-      
+
       upbat.virtAsst.intentHandlers[1].intentHandler(function next(title, response) {
         expect(title).toBe('Uploader Battery');
         expect(response).toBe('Your uploader battery is at 20%');

@@ -3,7 +3,7 @@ const helper = require('./inithelper')();
 
 describe('utils', () => {
   const ctx = helper.getctx();
-  
+
   ctx.settings = {
     alarmTimeagoUrgentMins: 30,
     alarmTimeagoWarnMins: 15

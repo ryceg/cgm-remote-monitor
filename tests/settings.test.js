@@ -1,40 +1,41 @@
 'use strict';
 
-var _ = require('lodash');
-var should = require('should');
-var levels = require('../lib/levels');
+import { describe, it, expect } from 'vitest';
+import _ from 'lodash';
+import levels from '../lib/levels';
+import settingsLib from '../lib/settings';
 
-describe('settings', function ( ) {
-  var settings = require('../lib/settings')();
+describe('settings', () => {
+  const settings = settingsLib();
 
-  it('have defaults ready', function () {
-    settings.timeFormat.should.equal(12);
-    settings.nightMode.should.equal(false);
-    settings.showRawbg.should.equal('never');
-    settings.customTitle.should.equal('Nightscout');
-    settings.theme.should.equal('default');
-    settings.alarmUrgentHigh.should.equal(true);
-    settings.alarmUrgentHighMins.should.eql([30, 60, 90, 120]);
-    settings.alarmHigh.should.equal(true);
-    settings.alarmHighMins.should.eql([30, 60, 90, 120]);
-    settings.alarmLow.should.equal(true);
-    settings.alarmLowMins.should.eql([15, 30, 45, 60]);
-    settings.alarmUrgentLow.should.equal(true);
-    settings.alarmUrgentLowMins.should.eql([15, 30, 45]);
-    settings.alarmUrgentMins.should.eql([30, 60, 90, 120]);
-    settings.alarmWarnMins.should.eql([30, 60, 90, 120]);
-    settings.alarmTimeagoWarn.should.equal(true);
-    settings.alarmTimeagoWarnMins.should.equal(15);
-    settings.alarmTimeagoUrgent.should.equal(true);
-    settings.alarmTimeagoUrgentMins.should.equal(30);
-    settings.language.should.equal('en');
-    settings.showPlugins.should.equal('dbsize');
-    settings.insecureUseHttp.should.equal(false);
-    settings.secureHstsHeader.should.equal(true);
-    settings.secureCsp.should.equal(false);
+  it('have defaults ready', () => {
+    expect(settings.timeFormat).toEqual(12);
+    expect(settings.nightMode).toEqual(false);
+    expect(settings.showRawbg).toEqual('never');
+    expect(settings.customTitle).toEqual('Nightscout');
+    expect(settings.theme).toEqual('default');
+    expect(settings.alarmUrgentHigh).toEqual(true);
+    expect(settings.alarmUrgentHighMins).toEqual([30, 60, 90, 120]);
+    expect(settings.alarmHigh).toEqual(true);
+    expect(settings.alarmHighMins).toEqual([30, 60, 90, 120]);
+    expect(settings.alarmLow).toEqual(true);
+    expect(settings.alarmLowMins).toEqual([15, 30, 45, 60]);
+    expect(settings.alarmUrgentLow).toEqual(true);
+    expect(settings.alarmUrgentLowMins).toEqual([15, 30, 45]);
+    expect(settings.alarmUrgentMins).toEqual([30, 60, 90, 120]);
+    expect(settings.alarmWarnMins).toEqual([30, 60, 90, 120]);
+    expect(settings.alarmTimeagoWarn).toEqual(true);
+    expect(settings.alarmTimeagoWarnMins).toEqual(15);
+    expect(settings.alarmTimeagoUrgent).toEqual(true);
+    expect(settings.alarmTimeagoUrgentMins).toEqual(30);
+    expect(settings.language).toEqual('en');
+    expect(settings.showPlugins).toEqual('dbsize');
+    expect(settings.insecureUseHttp).toEqual(false);
+    expect(settings.secureHstsHeader).toEqual(true);
+    expect(settings.secureCsp).toEqual(false);
   });
 
-  it('support setting from env vars', function () {
+  it('support setting from env vars', () => {
     var expected = [
       'ENABLE'
       , 'DISABLE'
@@ -62,7 +63,7 @@ describe('settings', function ( ) {
       , 'SCALE_Y'
     ];
 
-    expected.length.should.equal(24);
+    expect(expected.length).toEqual(24);
 
     var seen = { };
     settings.eachSettingAsEnv(function markSeenNames(name) {
@@ -74,10 +75,10 @@ describe('settings', function ( ) {
       return seen[name];
     });
 
-    expectedAndSeen.length.should.equal(expected.length);
+    expect(expectedAndSeen.length).toEqual(expected.length);
   });
 
-  it('support setting each', function () {
+  it('support setting each', () => {
     var expected = [
       'enable'
       , 'disable'
@@ -100,7 +101,7 @@ describe('settings', function ( ) {
       , 'showPlugins'
     ];
 
-    expected.length.should.equal(19);
+    expect(expected.length).toEqual(19);
 
     var seen = { };
     settings.eachSetting(function markSeenNames(name) {
@@ -112,50 +113,50 @@ describe('settings', function ( ) {
       return seen[name];
     });
 
-    expectedAndSeen.length.should.equal(expected.length);
+    expect(expectedAndSeen.length).toEqual(expected.length);
 
   });
 
-  it('have default features', function () {
-    var fresh = require('../lib/settings')();
+  it('have default features', () => {
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function () {
       return undefined;
     });
 
     _.each(fresh.DEFAULT_FEATURES, function eachDefault (feature) {
-      fresh.enable.should.containEql(feature);
+      expect(fresh.enable).toContain(feature);
     });
 
   });
 
-  it('support disabling default features', function () {
-    var fresh = require('../lib/settings')();
+  it('support disabling default features', () => {
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function (name) {
       return name === 'DISABLE' ?
         fresh.DEFAULT_FEATURES.join(' ') + ' ar2' //need to add ar2 here since it will be auto enabled
         : undefined;
     });
 
-    fresh.enable.length.should.equal(0);
+    expect(fresh.enable.length).toEqual(0);
   });
 
-  it('parse custom snooze mins', function () {
+  it('parse custom snooze mins', () => {
     var userSetting = {
       ALARM_URGENT_LOW_MINS: '5 10 15'
     };
 
-    var fresh = require('../lib/settings')();
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function (name) {
       return userSetting[name];
     });
 
-    fresh.alarmUrgentLowMins.should.eql([5, 10, 15]);
+    expect(fresh.alarmUrgentLowMins).toEqual([5, 10, 15]);
 
-    fresh.snoozeMinsForAlarmEvent({eventName: 'low', level: levels.URGENT}).should.eql([5, 10, 15]);
-    fresh.snoozeFirstMinsForAlarmEvent({eventName: 'low', level: levels.URGENT}).should.equal(5);
+    expect(fresh.snoozeMinsForAlarmEvent({eventName: 'low', level: levels.URGENT})).toEqual([5, 10, 15]);
+    expect(fresh.snoozeFirstMinsForAlarmEvent({eventName: 'low', level: levels.URGENT})).toEqual(5);
   });
 
-  it('set thresholds', function () {
+  it('set thresholds', () => {
     var userThresholds = {
       BG_HIGH: '200'
       , BG_TARGET_TOP: '170'
@@ -163,47 +164,47 @@ describe('settings', function ( ) {
       , BG_LOW: '60'
     };
 
-    var fresh = require('../lib/settings')();
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function (name) {
       return userThresholds[name];
     });
 
-    fresh.thresholds.bgHigh.should.equal(200);
-    fresh.thresholds.bgTargetTop.should.equal(170);
-    fresh.thresholds.bgTargetBottom.should.equal(70);
-    fresh.thresholds.bgLow.should.equal(60);
+    expect(fresh.thresholds.bgHigh).toEqual(200);
+    expect(fresh.thresholds.bgTargetTop).toEqual(170);
+    expect(fresh.thresholds.bgTargetBottom).toEqual(70);
+    expect(fresh.thresholds.bgLow).toEqual(60);
 
-    should.deepEqual(fresh.alarmTypes, ['simple']);
+    expect(fresh.alarmTypes).toEqual(['simple']);
   });
 
-  it('default to predict if no thresholds are set', function () {
-    var fresh = require('../lib/settings')();
+  it('default to predict if no thresholds are set', () => {
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function ( ) {
       return undefined;
     });
 
-    should.deepEqual(fresh.alarmTypes, ['predict']);
+    expect(fresh.alarmTypes).toEqual(['predict']);
   });
 
-  it('ignore junk alarm types', function () {
-    var fresh = require('../lib/settings')();
+  it('ignore junk alarm types', () => {
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function (name) {
       return name === 'ALARM_TYPES' ? 'beep bop' : undefined;
     });
 
-    should.deepEqual(fresh.alarmTypes, ['predict']);
+    expect(fresh.alarmTypes).toEqual(['predict']);
   });
 
-  it('allow multiple alarm types to be set', function () {
-    var fresh = require('../lib/settings')();
+  it('allow multiple alarm types to be set', () => {
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function (name) {
       return name === 'ALARM_TYPES' ? 'predict simple' : undefined;
     });
 
-    should.deepEqual(fresh.alarmTypes, ['predict', 'simple']);
+    expect(fresh.alarmTypes).toEqual(['predict', 'simple']);
   });
 
-  it('handle screwed up thresholds in a way that will display something that looks wrong', function () {
+  it('handle screwed up thresholds in a way that will display something that looks wrong', () => {
     var screwedUp = {
       BG_HIGH: '89'
       , BG_TARGET_TOP: '90'
@@ -211,31 +212,31 @@ describe('settings', function ( ) {
       , BG_LOW: '96'
     };
 
-    var fresh = require('../lib/settings')();
+    var fresh = settingsLib();
     fresh.eachSettingAsEnv(function (name) {
       return screwedUp[name];
     });
 
-    fresh.thresholds.bgHigh.should.equal(91);
-    fresh.thresholds.bgTargetTop.should.equal(90);
-    fresh.thresholds.bgTargetBottom.should.equal(89);
-    fresh.thresholds.bgLow.should.equal(88);
+    expect(fresh.thresholds.bgHigh).toEqual(91);
+    expect(fresh.thresholds.bgTargetTop).toEqual(90);
+    expect(fresh.thresholds.bgTargetBottom).toEqual(89);
+    expect(fresh.thresholds.bgLow).toEqual(88);
 
-    should.deepEqual(fresh.alarmTypes, ['simple']);
+    expect(fresh.alarmTypes).toEqual(['simple']);
   });
 
-  it('check if a feature isEnabled', function () {
-    var fresh = require('../lib/settings')();
+  it('check if a feature isEnabled', () => {
+    var fresh = settingsLib();
     fresh.enable = ['feature1'];
-    fresh.isEnabled('feature1').should.equal(true);
-    fresh.isEnabled('feature2').should.equal(false);
+    expect(fresh.isEnabled('feature1')).toEqual(true);
+    expect(fresh.isEnabled('feature2')).toEqual(false);
   });
 
-  it('check if any listed feature isEnabled', function () {
-    var fresh = require('../lib/settings')();
+  it('check if any listed feature isEnabled', () => {
+    var fresh = settingsLib();
     fresh.enable = ['feature1'];
-    fresh.isEnabled(['unknown', 'feature1']).should.equal(true);
-    fresh.isEnabled(['unknown', 'feature2']).should.equal(false);
+    expect(fresh.isEnabled(['unknown', 'feature1'])).toEqual(true);
+    expect(fresh.isEnabled(['unknown', 'feature2'])).toEqual(false);
   });
 
 });

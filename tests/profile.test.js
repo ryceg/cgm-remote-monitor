@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-const helper = require('./inithelper')();
+import initHelper from './inithelper';
+import profileFunctionsLib from '../lib/profilefunctions';
+
+const helper = initHelper();
 const moment = helper.ctx.moment;
 
 describe('Profile', () => {
-  var profile_empty = require('../lib/profilefunctions')(null, helper.ctx);
+  var profile_empty = profileFunctionsLib(null, helper.ctx);
 
   beforeEach(() => {
     profile_empty.clear();
@@ -13,7 +16,7 @@ describe('Profile', () => {
     var hasData = profile_empty.hasData();
     expect(hasData).toBe(false);
   });
-  
+
   it('should return undefined if asking for keys before init', () => {
     var dia = profile_empty.getDIA(now);
     expect(dia).toBeUndefined();
@@ -33,7 +36,7 @@ describe('Profile', () => {
     , 'target_high': 120
   };
 
-  var profile = require('../lib/profilefunctions')([profileData],helper.ctx);
+  var profile = profileFunctionsLib([profileData],helper.ctx);
   var now = Date.now();
 
   it('should know what the DIA is with old style profiles', () => {
@@ -73,7 +76,7 @@ describe('Profile', () => {
 
   it('should know how to reload data and still know what the low target is with old style profiles', () => {
 
-    var profile2 = require('../lib/profilefunctions')([profileData], helper.ctx);
+    var profile2 = profileFunctionsLib([profileData], helper.ctx);
     var profileData2 = {
       'dia': 3,
       'carbs_hr': 30,
@@ -88,7 +91,7 @@ describe('Profile', () => {
     expect(dia).toBe(50);
   });
 
-  var complexProfileData = 
+  var complexProfileData =
   {
     'timezone': moment.tz().zoneName(),  //Assume these are in the localtime zone so tests pass when not on UTC time
     'sens': [
@@ -157,7 +160,7 @@ describe('Profile', () => {
     'units': 'mmol'
 };
 
-  var complexProfile = require('../lib/profilefunctions')([complexProfileData], helper.ctx);
+  var complexProfile = profileFunctionsLib([complexProfileData], helper.ctx);
 
   var noon = new Date('2015-06-22 12:00:00').getTime();
   var threepm = new Date('2015-06-22 15:00:00').getTime();
@@ -269,7 +272,7 @@ describe('Profile', () => {
               "20190621-1": {
                   "dia": "4",
                   "timezone": moment.tz().zoneName(),  //Assume these are in the localtime zone so tests pass when not on UTC time
-                  "startDate": "1970-01-01T00:00:00.000Z", 
+                  "startDate": "1970-01-01T00:00:00.000Z",
                   'sens': [
                       {
                           'time': '00:00',
@@ -336,7 +339,7 @@ describe('Profile', () => {
       }
   ];
 
-  var multiProfile = require('../lib/profilefunctions')(multiProfileData, helper.ctx);
+  var multiProfile = profileFunctionsLib(multiProfileData, helper.ctx);
 
   var noon_multi = new Date('2015-06-22 12:00:00').getTime();
   var threepm_multi = new Date('2015-06-26 15:00:00').getTime();
@@ -376,7 +379,7 @@ describe('Profile', () => {
       var dia = multiProfile.getSensitivity(threepm_multi);
       expect(dia).toBe(14);
   });
-  
+
   it('should select the correct profile for 15:00 with multiple profiles', () => {
       var curProfile = multiProfile.getCurrentProfile(threepm_multi);
       expect(curProfile.carbs_hr).toBe(30);

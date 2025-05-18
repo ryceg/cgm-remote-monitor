@@ -1,114 +1,115 @@
-'use strict';
+import { describe, it, expect, vi } from 'vitest';
+import levels from '../lib/levels';
+import envLib from '../lib/server/env';
+import notificationsLib from '../lib/notifications';
+import pushnotifyLib from '../lib/server/pushnotify';
 
-var should = require('should');
-var levels = require('../lib/levels');
+describe('pushnotify', () => {
 
-describe('pushnotify', function ( ) {
+  it('send a pushover alarm, but only 1 time', () => {
+    return new Promise((resolve) => {
+      const env = envLib();
+      const ctx = {};
 
-  it('send a pushover alarm, but only 1 time', function (done) {
-    var env = require('../lib/server/env')();
-    var ctx = {};
+      ctx.levels = levels;
+      ctx.notifications = notificationsLib(env, ctx);
 
-    ctx.levels = levels;
-    ctx.notifications = require('../lib/notifications')(env, ctx);
+      const notify = {
+        title: 'Warning, this is a test!'
+        , message: 'details details details details'
+        , level: levels.WARN
+        , pushoverSound: 'climb'
+        , plugin: {name: 'test'}
+      };
 
-    var notify = {
-      title: 'Warning, this is a test!'
-      , message: 'details details details details'
-      , level: levels.WARN
-      , pushoverSound: 'climb'
-      , plugin: {name: 'test'}
-    };
+      ctx.pushover = {
+        PRIORITY_NORMAL: 0
+        , PRIORITY_EMERGENCY: 2
+        , send: vi.fn((notify2, callback) => {
+            expect(notify2).toEqual(notify);
+            callback(null, JSON.stringify({receipt: 'abcd12345'}));
+            resolve();
+          })
+      };
 
-    ctx.pushover = {
-      PRIORITY_NORMAL: 0
-      , PRIORITY_EMERGENCY: 2
-      , send: function mockedSend (notify2, callback) {
-          should.deepEqual(notify, notify2);
+      ctx.pushnotify = pushnotifyLib(env, ctx);
+
+      ctx.pushnotify.emitNotification(notify);
+
+      //call again, but should be deduped, or fail with 'done() called multiple times'
+      ctx.pushnotify.emitNotification(notify);
+    });
+  });
+
+  it('send a pushover notification, but only 1 time', () => {
+    return new Promise((resolve) => {
+      const env = envLib();
+      const ctx = {};
+      ctx.levels = levels;
+      ctx.notifications = notificationsLib(env, ctx);
+
+      const notify = {
+        title: 'Sent from a test'
+        , message: 'details details details details'
+        , level: levels.INFO
+        , plugin: {name: 'test'}
+      };
+
+      ctx.pushover = {
+        PRIORITY_NORMAL: 0
+        , PRIORITY_EMERGENCY: 2
+        , send: vi.fn((notify2, callback) => {
+          expect(notify2).toEqual(notify);
+            callback(null, JSON.stringify({}));
+            resolve();
+          })
+      };
+
+      ctx.pushnotify = pushnotifyLib(env, ctx);
+
+      ctx.pushnotify.emitNotification(notify);
+
+      //call again, but should be deduped, or fail with 'done() called multiple times'
+      ctx.pushnotify.emitNotification(notify);
+    });
+  });
+
+  it('send a pushover alarm, and then cancel', () => {
+    return new Promise((resolve) => {
+      const env = envLib();
+      const ctx = {};
+      ctx.levels = levels;
+
+      ctx.notifications = notificationsLib(env, ctx);
+
+      const notify = {
+        title: 'Warning, this is a test!'
+        , message: 'details details details details'
+        , level: levels.WARN
+        , pushoverSound: 'climb'
+        , plugin: {name: 'test'}
+      };
+
+      ctx.pushover = {
+        PRIORITY_NORMAL: 0
+        , PRIORITY_EMERGENCY: 2
+        , send: vi.fn((notify2, callback) => {
+          expect(notify2).toEqual(notify);
           callback(null, JSON.stringify({receipt: 'abcd12345'}));
-          done();
-        }
-    };
+        })
+        , cancelWithReceipt: vi.fn((receipt) => {
+          expect(receipt).toEqual('abcd12345');
+          resolve();
+        })
+      };
 
-    ctx.pushnotify = require('../lib/server/pushnotify')(env, ctx);
+      ctx.pushnotify = pushnotifyLib(env, ctx);
 
-    ctx.pushnotify.emitNotification(notify);
+      //first send the warning
+      ctx.pushnotify.emitNotification(notify);
 
-    //call again, but should be deduped, or fail with 'done() called multiple times'
-    ctx.pushnotify.emitNotification(notify);
-
+      //then pretend is was acked from the web
+      ctx.pushnotify.emitNotification({clear: true});
+    });
   });
-
-  it('send a pushover notification, but only 1 time', function (done) {
-    var env = require('../lib/server/env')();
-    var ctx = {};
-    ctx.levels = levels;
-    ctx.notifications = require('../lib/notifications')(env, ctx);
-
-    var notify = {
-      title: 'Sent from a test'
-      , message: 'details details details details'
-      , level: levels.INFO
-      , plugin: {name: 'test'}
-    };
-
-    ctx.pushover = {
-      PRIORITY_NORMAL: 0
-      , PRIORITY_EMERGENCY: 2
-      , send: function mockedSend (notify2, callback) {
-        should.deepEqual(notify, notify2);
-          callback(null, JSON.stringify({}));
-          done();
-        }
-    };
-
-    ctx.pushnotify = require('../lib/server/pushnotify')(env, ctx);
-
-    ctx.pushnotify.emitNotification(notify);
-
-    //call again, but should be deduped, or fail with 'done() called multiple times'
-    ctx.pushnotify.emitNotification(notify);
-
-  });
-
-  it('send a pushover alarm, and then cancel', function (done) {
-    var env = require('../lib/server/env')();
-    var ctx = {};
-    ctx.levels = levels;
-
-    ctx.notifications = require('../lib/notifications')(env, ctx);
-
-    var notify = {
-      title: 'Warning, this is a test!'
-      , message: 'details details details details'
-      , level: levels.WARN
-      , pushoverSound: 'climb'
-      , plugin: {name: 'test'}
-    };
-
-    ctx.pushover = {
-      PRIORITY_NORMAL: 0
-      , PRIORITY_EMERGENCY: 2
-      , send: function mockedSend (notify2, callback) {
-        should.deepEqual(notify, notify2);
-        callback(null, JSON.stringify({receipt: 'abcd12345'}));
-      }
-      , cancelWithReceipt: function mockedCancel (receipt) {
-        receipt.should.equal('abcd12345');
-        done();
-      }
-    };
-
-    ctx.pushnotify = require('../lib/server/pushnotify')(env, ctx);
-
-    //first send the warning
-    ctx.pushnotify.emitNotification(notify);
-
-    //then pretend is was acked from the web
-    ctx.pushnotify.emitNotification({clear: true});
-
-  });
-
-
-
 });

@@ -1,7 +1,7 @@
 'use strict';
 
-var _ = require('lodash');
-var should = require('should');
+import { describe, it, expect, vi } from 'vitest';
+import _ from 'lodash';
 const helper = require('./inithelper')();
 const moment = helper.ctx.moment;
 
@@ -102,19 +102,18 @@ _.forEach(statuses2, function updateMills (status) {
   status.mills = moment(status.created_at).valueOf();
 });
 
-describe('pump', function ( ) {
+describe('pump', () => {
 
-  it('set the property and update the pill', function (done) {
-    var ctx = {
+  it('set the property and update the pill', async () => {
+    const ctx = {
       settings: {
         units: 'mg/dl'
       }
       , pluginBase: {
-        updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.label.should.equal('Pump');
-          options.value.should.equal('86.4U');
-          done();
-        }
+        updatePillText: vi.fn((plugin, options) => {
+          expect(options.label).toEqual('Pump');
+          expect(options.value).toEqual('86.4U');
+        })
       }
       , language: language
       , levels: levels
@@ -124,12 +123,12 @@ describe('pump', function ( ) {
 
     var unmockedOfferProperty = sbx.offerProperty;
     sbx.offerProperty = function mockedOfferProperty (name, setter) {
-      name.should.equal('pump');
+      expect(name).toEqual('pump');
       var result = setter();
-      should.exist(result);
-      result.data.level.should.equal(levels.NONE);
-      result.data.battery.value.should.equal(1.52);
-      result.data.reservoir.value.should.equal(86.4);
+      expect(result).toBeDefined();
+      expect(result.data.level).toEqual(levels.NONE);
+      expect(result.data.battery.value).toEqual(1.52);
+      expect(result.data.reservoir.value).toEqual(86.4);
 
       sbx.offerProperty = unmockedOfferProperty;
       unmockedOfferProperty(name, setter);
@@ -138,20 +137,19 @@ describe('pump', function ( ) {
 
     pump.setProperties(sbx);
     pump.updateVisualisation(sbx);
-
+    expect(ctx.pluginBase.updatePillText).toHaveBeenCalled();
   });
 
-  it('use reservoir_display_override when available', function (done) {
-    var ctx = {
+  it('use reservoir_display_override when available', async () => {
+    const ctx = {
       settings: {
         units: 'mmol'
       }
       , pluginBase: {
-        updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.label.should.equal('Pump');
-          options.value.should.equal('50+U');
-          done();
-        }
+        updatePillText: vi.fn((plugin, options) => {
+          expect(options.label).toEqual('Pump');
+          expect(options.value).toEqual('50+U');
+        })
       }
       , language: language
       , levels: levels
@@ -161,17 +159,17 @@ describe('pump', function ( ) {
 
     var unmockedOfferProperty = sbx.offerProperty;
     sbx.offerProperty = function mockedOfferProperty (name, setter) {
-      name.should.equal('pump');
+      expect(name).toEqual('pump');
       sbx.offerProperty = unmockedOfferProperty;
       unmockedOfferProperty(name, setter);
     };
 
     pump.setProperties(sbx);
     pump.updateVisualisation(sbx);
-
+    expect(ctx.pluginBase.updatePillText).toHaveBeenCalled();
   });
 
-  it('not generate an alert when pump is ok', function (done) {
+  it('not generate an alert when pump is ok', () => {
     var ctx = {
       settings: {
         units: 'mg/dl'
@@ -191,12 +189,10 @@ describe('pump', function ( ) {
     pump.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('Pump');
-    should.not.exist(highest);
-
-    done();
+    expect(highest).toBeUndefined();
   });
 
-  it('generate an alert when reservoir is low', function (done) {
+  it('generate an alert when reservoir is low', () => {
     var ctx = {
       settings: {
         units: 'mg/dl'
@@ -219,13 +215,11 @@ describe('pump', function ( ) {
     pump.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('Pump');
-    highest.level.should.equal(levels.URGENT);
-    highest.title.should.equal('URGENT: Pump Reservoir Low');
-
-    done();
+    expect(highest.level).toEqual(levels.URGENT);
+    expect(highest.title).toEqual('URGENT: Pump Reservoir Low');
   });
 
-  it('generate an alert when reservoir is 0', function (done) {
+  it('generate an alert when reservoir is 0', () => {
     var ctx = {
       settings: {
         units: 'mg/dl'
@@ -248,14 +242,12 @@ describe('pump', function ( ) {
     pump.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('Pump');
-    highest.level.should.equal(levels.URGENT);
-    highest.title.should.equal('URGENT: Pump Reservoir Low');
-
-    done();
+    expect(highest.level).toEqual(levels.URGENT);
+    expect(highest.title).toEqual('URGENT: Pump Reservoir Low');
   });
 
 
-  it('generate an alert when battery is low', function (done) {
+  it('generate an alert when battery is low', () => {
     var ctx = {
       settings: {
         units: 'mg/dl'
@@ -278,13 +270,11 @@ describe('pump', function ( ) {
     pump.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('Pump');
-    highest.level.should.equal(levels.WARN);
-    highest.title.should.equal('Warning, Pump Battery Low');
-
-    done();
+    expect(highest.level).toEqual(levels.WARN);
+    expect(highest.title).toEqual('Warning, Pump Battery Low');
   });
 
-  it('generate an urgent alarm when battery is really low', function (done) {
+  it('generate an urgent alarm when battery is really low', () => {
     var ctx = {
       settings: {
         units: 'mg/dl'
@@ -307,25 +297,22 @@ describe('pump', function ( ) {
     pump.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('Pump');
-    highest.level.should.equal(levels.URGENT);
-    highest.title.should.equal('URGENT: Pump Battery Low');
-
-    done();
+    expect(highest.level).toEqual(levels.URGENT);
+    expect(highest.title).toEqual('URGENT: Pump Battery Low');
   });
 
-  it('not generate a battery alarm during night when PUMP_WARN_BATT_QUIET_NIGHT is true', function (done) {
-    var ctx = {
+  it('not generate a battery alarm during night when PUMP_WARN_BATT_QUIET_NIGHT is true', async () => {
+    const ctx = {
       settings: {
         units: 'mg/dl'
         , dayStart: 24 // Set to 24 so it always evaluates true in test
         , dayEnd: 21.0
       }
       , pluginBase: {
-        updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.label.should.equal('Pump');
-          options.value.should.equal('86.4U');
-          done();
-        }
+        updatePillText: vi.fn((plugin, options) => {
+          expect(options.label).toEqual('Pump');
+          expect(options.value).toEqual('86.4U');
+        })
       }
       , notifications: require('../lib/notifications')(env, top_ctx)
       , language: require('../lib/language')()
@@ -352,12 +339,14 @@ describe('pump', function ( ) {
     pump.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('Pump');
-    should.not.exist(highest);
-
-    done();
+    expect(highest).toBeUndefined();
+    // The original test called done() inside updatePillText,
+    // but checkNotifications doesn't seem to trigger it in this specific test case.
+    // If updatePillText was indeed expected to be called, this assertion would fail.
+    // expect(ctx.pluginBase.updatePillText).toHaveBeenCalled();
   });
 
-  it('not generate an alert for a stale pump data, when there is an offline marker', function (done) {
+  it('not generate an alert for a stale pump data, when there is an offline marker', () => {
     var ctx = {
       settings: {
         units: 'mg/dl'
@@ -378,50 +367,50 @@ describe('pump', function ( ) {
     pump.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('Pump');
-    should.not.exist(highest);
-    done();
+    expect(highest).toBeUndefined();
   });
 
-  it('should handle virtAsst requests', function (done) {
-    var ctx = {
-      settings: {
-        units: 'mg/dl'
-      }
-      , notifications: require('../lib/notifications')(env, top_ctx)
-      , language: language
-      , levels: levels
-    };
-    
-    ctx.language.set('en');
-    var sbx = sandbox.clientInit(ctx, now.valueOf(), {devicestatus: statuses});
-    pump.setProperties(sbx);
+  it('should handle virtAsst requests', () => {
+    return new Promise((resolve) => {
+      const ctx = {
+        settings: {
+          units: 'mg/dl'
+        }
+        , notifications: require('../lib/notifications')(env, top_ctx)
+        , language: language
+        , levels: levels
+      };
 
-    pump.virtAsst.intentHandlers.length.should.equal(4);
+      ctx.language.set('en');
+      var sbx = sandbox.clientInit(ctx, now.valueOf(), {devicestatus: statuses});
+      pump.setProperties(sbx);
 
-    pump.virtAsst.intentHandlers[0].intentHandler(function next(title, response) {
-      title.should.equal('Insulin Remaining');
-      response.should.equal('You have 86.4 units remaining');
+      expect(pump.virtAsst.intentHandlers.length).toEqual(4);
 
-      pump.virtAsst.intentHandlers[1].intentHandler(function next(title, response) {
-        title.should.equal('Pump Battery');
-        response.should.equal('Your pump battery is at 1.52 volts');
-        
-        pump.virtAsst.intentHandlers[2].intentHandler(function next(title, response) {
-          title.should.equal('Insulin Remaining');
-          response.should.equal('You have 86.4 units remaining');
-    
-          pump.virtAsst.intentHandlers[3].intentHandler(function next(title, response) {
-            title.should.equal('Pump Battery');
-            response.should.equal('Your pump battery is at 1.52 volts');
-            done();
+      pump.virtAsst.intentHandlers[0].intentHandler(function next(title, response) {
+        expect(title).toEqual('Insulin Remaining');
+        expect(response).toEqual('You have 86.4 units remaining');
+
+        pump.virtAsst.intentHandlers[1].intentHandler(function next(title, response) {
+          expect(title).toEqual('Pump Battery');
+          expect(response).toEqual('Your pump battery is at 1.52 volts');
+
+          pump.virtAsst.intentHandlers[2].intentHandler(function next(title, response) {
+            expect(title).toEqual('Insulin Remaining');
+            expect(response).toEqual('You have 86.4 units remaining');
+
+            pump.virtAsst.intentHandlers[3].intentHandler(function next(title, response) {
+              expect(title).toEqual('Pump Battery');
+              expect(response).toEqual('Your pump battery is at 1.52 volts');
+              resolve();
+            }, [], sbx);
+
           }, [], sbx);
-          
+
         }, [], sbx);
-          
+
       }, [], sbx);
-
-    }, [], sbx);
-
+    });
   });
 
 });
