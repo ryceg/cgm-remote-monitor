@@ -1,17 +1,14 @@
-'use strict';
-
-require('should');
+import { describe, it, expect } from 'vitest';
 const fs = require('fs');
+const levels = require('../lib/levels');
 
-var levels = require('../lib/levels');
+describe('Uploader Battery', () => {
+  const data = { devicestatus: [{ mills: Date.now(), uploader: { battery: 20 } }] };
 
-describe('Uploader Battery', function ( ) {
-  var data = {devicestatus: [{mills: Date.now(), uploader: {battery: 20}}]};
-
-  it('display uploader battery status', function (done) {
+  it('display uploader battery status', () => new Promise((done) => {
     var ctx = {
-      settings: {}
-      , language: require('../lib/language')(fs)
+      settings: {},
+      language: require('../lib/language')(fs),
     };
     ctx.language.set('en');
     ctx.levels = levels;
@@ -20,33 +17,32 @@ describe('Uploader Battery', function ( ) {
     var sbx = sandbox.clientInit(ctx, Date.now(), data);
 
     sbx.offerProperty = function mockedOfferProperty (name, setter) {
-      name.should.equal('upbat');
+      expect(name).toBe('upbat');
       var result = setter();
-      result.display.should.equal('20%');
-      result.status.should.equal('urgent');
-      result.min.value.should.equal(20);
-      result.min.level.should.equal(25);
+      expect(result.display).toBe('20%');
+      expect(result.status).toBe('urgent');
+      expect(result.min.value).toBe(20);
+      expect(result.min.level).toBe(25);
       done();
     };
 
     var upbat = require('../lib/plugins/upbat')(ctx);
     upbat.setProperties(sbx);
+  }));
 
-  });
-
-  it('set a pill to the uploader battery status', function (done) {
+  it('set a pill to the uploader battery status', () => new Promise((done) => {
     var ctx = {
-      settings: {}
-      , pluginBase: {
+      settings: {},
+      pluginBase: {
         updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.value.should.equal('20%');
-          options.labelClass.should.equal('icon-battery-25');
-          options.pillClass.should.equal('urgent');
+          expect(options.value).toBe('20%');
+          expect(options.labelClass).toBe('icon-battery-25');
+          expect(options.pillClass).toBe('urgent');
           done();
         }
-      }
-      , language: require('../lib/language')(fs)
-      , levels: levels
+      },
+      language: require('../lib/language')(fs),
+      levels: levels
     };
     ctx.language.set('en');
 
@@ -55,20 +51,19 @@ describe('Uploader Battery', function ( ) {
     var upbat = require('../lib/plugins/upbat')(ctx);
     upbat.setProperties(sbx);
     upbat.updateVisualisation(sbx);
+  }));
 
-  });
-
-  it('hide the pill if there is no uploader battery status', function (done) {
+  it('hide the pill if there is no uploader battery status', () => new Promise((done) => {
     var ctx = {
-      settings: {}
-      , pluginBase: {
+      settings: {},
+      pluginBase: {
         updatePillText: function mockedUpdatePillText (plugin, options) {
-          options.hide.should.equal(true);
+          expect(options.hide).toBe(true);
           done();
         }
-      }
-      , language: require('../lib/language')(fs)
-      , levels: levels
+      },
+      language: require('../lib/language')(fs),
+      levels: levels
     };
     ctx.language.set('en');
 
@@ -77,34 +72,34 @@ describe('Uploader Battery', function ( ) {
     var upbat = require('../lib/plugins/upbat')(ctx);
     upbat.setProperties(sbx);
     upbat.updateVisualisation(sbx);
-  });
+  }));
 
-  it('hide the pill if there is uploader battery status is -1', function (done) {
+  it('hide the pill if there is uploader battery status is -1', () => new Promise((done) => {
     var ctx = {
-      settings: {}
-      , pluginBase: {
+      settings: {},
+      pluginBase: {
         updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.hide.should.equal(true);
+          expect(options.hide).toBe(true);
           done();
         }
-      }, language: require('../lib/language')(fs)
-      , levels: levels
+      }, 
+      language: require('../lib/language')(fs),
+      levels: levels
     };
     ctx.language.set('en');
 
     var sandbox = require('../lib/sandbox')();
-    var sbx = sandbox.clientInit(ctx, Date.now(), {devicestatus: [{uploader: {battery: -1}}]});
+    var sbx = sandbox.clientInit(ctx, Date.now(), { devicestatus: [{ uploader: { battery: -1 } }] });
     var upbat = require('../lib/plugins/upbat')(ctx);
     upbat.setProperties(sbx);
     upbat.updateVisualisation(sbx);
-  });
+  }));
 
-  it('should handle virtAsst requests', function (done) {
-
+  it('should handle virtAsst requests', () => new Promise((done) => {
     var ctx = {
-      settings: {}
-      , language: require('../lib/language')(fs)
-      , levels: levels
+      settings: {},
+      language: require('../lib/language')(fs),
+      levels: levels
     };
     ctx.language.set('en');
 
@@ -113,21 +108,17 @@ describe('Uploader Battery', function ( ) {
     var upbat = require('../lib/plugins/upbat')(ctx);
     upbat.setProperties(sbx);
 
-    upbat.virtAsst.intentHandlers.length.should.equal(2);
+    expect(upbat.virtAsst.intentHandlers.length).toBe(2);
 
     upbat.virtAsst.intentHandlers[0].intentHandler(function next(title, response) {
-      title.should.equal('Uploader Battery');
-      response.should.equal('Your uploader battery is at 20%');
+      expect(title).toBe('Uploader Battery');
+      expect(response).toBe('Your uploader battery is at 20%');
       
       upbat.virtAsst.intentHandlers[1].intentHandler(function next(title, response) {
-        title.should.equal('Uploader Battery');
-        response.should.equal('Your uploader battery is at 20%');
-
+        expect(title).toBe('Uploader Battery');
+        expect(response).toBe('Your uploader battery is at 20%');
         done();
       }, [], sbx);
-      
     }, [], sbx);
-
-  });
-
+  }));
 });

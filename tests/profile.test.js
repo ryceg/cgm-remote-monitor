@@ -1,29 +1,27 @@
-var should = require('should');
+import { describe, it, expect, beforeEach } from 'vitest';
 const helper = require('./inithelper')();
 const moment = helper.ctx.moment;
 
-describe('Profile', function ( ) {
-
-
+describe('Profile', () => {
   var profile_empty = require('../lib/profilefunctions')(null, helper.ctx);
 
-  beforeEach(function() {
+  beforeEach(() => {
     profile_empty.clear();
   });
 
-  it('should say it does not have data before it has data', function() {
+  it('should say it does not have data before it has data', () => {
     var hasData = profile_empty.hasData();
-    hasData.should.equal(false);
+    expect(hasData).toBe(false);
   });
   
- it('should return undefined if asking for keys before init', function() {
+  it('should return undefined if asking for keys before init', () => {
     var dia = profile_empty.getDIA(now);
-    should.not.exist(dia);
+    expect(dia).toBeUndefined();
   });
 
-  it('should return undefined if asking for missing keys', function() {
+  it('should return undefined if asking for missing keys', () => {
     var sens = profile_empty.getSensitivity(now);
-    should.not.exist(sens);
+    expect(sens).toBeUndefined();
   });
 
   var profileData = {
@@ -38,42 +36,42 @@ describe('Profile', function ( ) {
   var profile = require('../lib/profilefunctions')([profileData],helper.ctx);
   var now = Date.now();
 
-  it('should know what the DIA is with old style profiles', function() {
+  it('should know what the DIA is with old style profiles', () => {
     var dia = profile.getDIA(now);
-    dia.should.equal(3);
+    expect(dia).toBe(3);
   });
 
-  it('should know what the DIA is with old style profiles, with missing date argument', function() {
+  it('should know what the DIA is with old style profiles, with missing date argument', () => {
     var dia = profile.getDIA();
-    dia.should.equal(3);
+    expect(dia).toBe(3);
   });
 
-  it('should know what the carbs_hr is with old style profiles', function() {
+  it('should know what the carbs_hr is with old style profiles', () => {
     var carbs_hr = profile.getCarbAbsorptionRate(now);
-    carbs_hr.should.equal(30);
+    expect(carbs_hr).toBe(30);
   });
 
-  it('should know what the carbratio is with old style profiles', function() {
+  it('should know what the carbratio is with old style profiles', () => {
     var carbRatio = profile.getCarbRatio(now);
-    carbRatio.should.equal(7);
+    expect(carbRatio).toBe(7);
   });
 
-  it('should know what the sensitivity is with old style profiles', function() {
+  it('should know what the sensitivity is with old style profiles', () => {
     var dia = profile.getSensitivity(now);
-    dia.should.equal(35);
+    expect(dia).toBe(35);
   });
 
-  it('should know what the low target is with old style profiles', function() {
+  it('should know what the low target is with old style profiles', () => {
     var dia = profile.getLowBGTarget(now);
-    dia.should.equal(95);
+    expect(dia).toBe(95);
   });
 
-  it('should know what the high target is with old style profiles', function() {
+  it('should know what the high target is with old style profiles', () => {
     var dia = profile.getHighBGTarget(now);
-    dia.should.equal(120);
+    expect(dia).toBe(120);
   });
 
-  it('should know how to reload data and still know what the low target is with old style profiles', function() {
+  it('should know how to reload data and still know what the low target is with old style profiles', () => {
 
     var profile2 = require('../lib/profilefunctions')([profileData], helper.ctx);
     var profileData2 = {
@@ -87,7 +85,7 @@ describe('Profile', function ( ) {
 
     profile2.loadData([profileData2]);
     var dia = profile2.getLowBGTarget(now);
-    dia.should.equal(50);
+    expect(dia).toBe(50);
   });
 
   var complexProfileData = 
@@ -164,33 +162,33 @@ describe('Profile', function ( ) {
   var noon = new Date('2015-06-22 12:00:00').getTime();
   var threepm = new Date('2015-06-22 15:00:00').getTime();
 
-  it('should return profile units when configured', function() {
+  it('should return profile units when configured', () => {
     var value = complexProfile.getUnits();
-    value.should.equal('mmol');
+    expect(value).toBe('mmol');
   });
 
 
-  it('should know what the basal rate is at 12:00 with complex style profiles', function() {
+  it('should know what the basal rate is at 12:00 with complex style profiles', () => {
     var value = complexProfile.getBasal(noon);
-    value.should.equal(0.1);
+    expect(value).toBe(0.1);
   });
 
-  it('should know what the basal rate is at 15:00 with complex style profiles', function() {
+  it('should know what the basal rate is at 15:00 with complex style profiles', () => {
     var value = complexProfile.getBasal(threepm);
-    value.should.equal(0.125);
+    expect(value).toBe(0.125);
   });
 
-  it('should know what the carbratio is at 12:00 with complex style profiles', function() {
+  it('should know what the carbratio is at 12:00 with complex style profiles', () => {
     var carbRatio = complexProfile.getCarbRatio(noon);
-    carbRatio.should.equal(15);
+    expect(carbRatio).toBe(15);
   });
 
-  it('should know what the sensitivity is at 12:00 with complex style profiles', function() {
+  it('should know what the sensitivity is at 12:00 with complex style profiles', () => {
     var dia = complexProfile.getSensitivity(noon);
-    dia.should.equal(9);
+    expect(dia).toBe(9);
   });
 
-    var multiProfileData =
+  var multiProfileData =
   [
       {
           "startDate": "2015-06-25T00:00:00.000Z",
@@ -340,49 +338,48 @@ describe('Profile', function ( ) {
 
   var multiProfile = require('../lib/profilefunctions')(multiProfileData, helper.ctx);
 
-  var noon = new Date('2015-06-22 12:00:00').getTime();
-  var threepm = new Date('2015-06-26 15:00:00').getTime();
+  var noon_multi = new Date('2015-06-22 12:00:00').getTime();
+  var threepm_multi = new Date('2015-06-26 15:00:00').getTime();
 
-  it('should return profile units when configured', function () {
+
+  it('should return profile units when configured', () => {
       var value = multiProfile.getUnits();
-      value.should.equal('mmol');
+      expect(value).toBe('mmol');
   });
 
-
-  it('should know what the basal rate is at 12:00 with multiple profiles', function () {
-      var value = multiProfile.getBasal(noon);
-      value.should.equal(0.4);
+  it('should know what the basal rate is at 12:00 with multiple profiles', () => {
+      var value = multiProfile.getBasal(noon_multi);
+      expect(value).toBe(0.4);
   });
 
-  it('should know what the basal rate is at 15:00 with multiple profiles', function () {
-      var value = multiProfile.getBasal(threepm);
-      value.should.equal(0.9);
+  it('should know what the basal rate is at 15:00 with multiple profiles', () => {
+      var value = multiProfile.getBasal(threepm_multi);
+      expect(value).toBe(0.9);
   });
 
-  it('should know what the carbratio is at 12:00 with multiple profiles', function () {
-      var carbRatio = multiProfile.getCarbRatio(noon);
-      carbRatio.should.equal(13);
+  it('should know what the carbratio is at 12:00 with multiple profiles', () => {
+      var carbRatio = multiProfile.getCarbRatio(noon_multi);
+      expect(carbRatio).toBe(13);
   });
 
-  it('should know what the carbratio is at 15:00 with multiple profiles', function () {
-      var carbRatio = multiProfile.getCarbRatio(threepm);
-      carbRatio.should.equal(17);
+  it('should know what the carbratio is at 15:00 with multiple profiles', () => {
+      var carbRatio = multiProfile.getCarbRatio(threepm_multi);
+      expect(carbRatio).toBe(17);
   });
 
-  it('should know what the sensitivity is at 12:00 with multiple profiles', function () {
-      var dia = multiProfile.getSensitivity(noon);
-      dia.should.equal(9);
+  it('should know what the sensitivity is at 12:00 with multiple profiles', () => {
+      var dia = multiProfile.getSensitivity(noon_multi);
+      expect(dia).toBe(9);
   });
 
-  it('should know what the sensitivity is at 15:00 with multiple profiles', function () {
-      var dia = multiProfile.getSensitivity(threepm);
-      dia.should.equal(14);
+  it('should know what the sensitivity is at 15:00 with multiple profiles', () => {
+      var dia = multiProfile.getSensitivity(threepm_multi);
+      expect(dia).toBe(14);
   });
-
   
-  it('should select the correct profile for 15:00 with multiple profiles', function () {
-      var curProfile = multiProfile.getCurrentProfile(threepm);
-      curProfile.carbs_hr.should.equal(30);
+  it('should select the correct profile for 15:00 with multiple profiles', () => {
+      var curProfile = multiProfile.getCurrentProfile(threepm_multi);
+      expect(curProfile.carbs_hr).toBe(30);
   });
 
 });
