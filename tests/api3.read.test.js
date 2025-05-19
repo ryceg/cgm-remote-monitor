@@ -1,8 +1,8 @@
 /* eslint require-atomic-updates: 0 */
-/* global should */
+
 'use strict';
 
-require('should');
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 
 describe('API3 READ', function () {
   const self = this
@@ -20,10 +20,10 @@ describe('API3 READ', function () {
   };
   self.validDoc.identifier = opTools.calculateIdentifier(self.validDoc);
 
-  self.timeout(15000);
+  // self.timeout(15000); // Vitest uses describe options for timeout
 
 
-  before(async () => {
+  beforeAll(async () => {
     self.instance = await instance.create({});
 
     self.app = self.instance.app;
@@ -43,7 +43,7 @@ describe('API3 READ', function () {
   });
 
 
-  after(() => {
+  afterAll(() => {
     self.instance.ctx.bus.teardown();
   });
 
@@ -62,8 +62,8 @@ describe('API3 READ', function () {
     let res = await self.instance.get(`${self.url}/FAKE_IDENTIFIER`)
       .expect(401);
 
-    res.body.status.should.equal(401);
-    res.body.message.should.equal('Missing or bad access token or JWT');
+    expect(res.body.status).toBe(401);
+    expect(res.body.message).toBe('Missing or bad access token or JWT');
   });
 
 
@@ -72,8 +72,8 @@ describe('API3 READ', function () {
       .send(self.validDoc)
       .expect(404);
 
-    res.body.status.should.equal(404);
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(404);
+    expect(res.body.result).toBeUndefined();
     self.cache.shouldBeEmpty()
   });
 
@@ -82,8 +82,8 @@ describe('API3 READ', function () {
     let res = await self.instance.get(`${self.url}/${self.validDoc.identifier}`, self.jwt.read)
       .expect(404);
 
-    res.body.status.should.equal(404);
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(404);
+    expect(res.body.result).toBeUndefined();
     self.cache.shouldBeEmpty()
   });
 
@@ -93,17 +93,19 @@ describe('API3 READ', function () {
       .send(self.validDoc)
       .expect(201);
 
-    res.body.status.should.equal(201);
+    expect(res.body.status).toBe(201);
 
     res = await self.instance.get(`${self.url}/${self.validDoc.identifier}`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     const result = res.body.result;
-    result.should.containEql(self.validDoc);
-    result.should.have.property('srvCreated').which.is.a.Number();
-    result.should.have.property('srvModified').which.is.a.Number();
-    result.should.have.property('subject');
+    expect(result).toMatchObject(self.validDoc);
+    expect(result).toHaveProperty('srvCreated');
+    expect(typeof result.srvCreated).toBe('number');
+    expect(result).toHaveProperty('srvModified');
+    expect(typeof result.srvModified).toBe('number');
+    expect(result).toHaveProperty('subject');
     self.validDoc.subject = result.subject; // let's store subject for later tests
 
     self.cache.nextShouldEql(self.col, self.validDoc)
@@ -114,13 +116,13 @@ describe('API3 READ', function () {
     let res = await self.instance.get(`${self.url}/${self.validDoc.identifier}?fields=date,device,subject`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     const correct = {
       date: self.validDoc.date,
       device: self.validDoc.device,
       subject: self.validDoc.subject
     };
-    res.body.result.should.eql(correct);
+    expect(res.body.result).toEqual(correct);
   });
 
 
@@ -128,9 +130,9 @@ describe('API3 READ', function () {
     let res = await self.instance.get(`${self.url}/${self.validDoc.identifier}?fields=_all`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     for (let fieldName of ['app', 'date', 'device', 'identifier', 'srvModified', 'uploaderBattery', 'subject']) {
-      res.body.result.should.have.property(fieldName);
+      expect(res.body.result).toHaveProperty(fieldName);
     }
   });
 
@@ -140,7 +142,7 @@ describe('API3 READ', function () {
       .set('If-Modified-Since', new Date(new Date().getTime() + 1000).toUTCString())
       .expect(304);
 
-    res.body.should.be.empty();
+    expect(res.body).toEqual({});
   });
 
 
@@ -149,8 +151,8 @@ describe('API3 READ', function () {
       .set('If-Modified-Since', new Date(new Date(self.validDoc.date).getTime() - 1000).toUTCString())
       .expect(200);
 
-    res.body.status.should.equal(200);
-    res.body.result.should.containEql(self.validDoc);
+    expect(res.body.status).toBe(200);
+    expect(res.body.result).toMatchObject(self.validDoc);
   });
 
 
@@ -158,14 +160,14 @@ describe('API3 READ', function () {
     let res = await self.instance.delete(`${self.url}/${self.validDoc.identifier}`, self.jwt.delete)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     self.cache.nextShouldDeleteLast(self.col)
 
     res = await self.instance.get(`${self.url}/${self.validDoc.identifier}`, self.jwt.read)
       .expect(410);
 
-    res.body.status.should.equal(410);
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(410);
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -173,14 +175,14 @@ describe('API3 READ', function () {
     let res = await self.instance.delete(`${self.url}/${self.validDoc.identifier}?permanent=true`, self.jwt.delete)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     self.cache.nextShouldDeleteLast(self.col)
 
     res = await self.instance.get(`${self.url}/${self.validDoc.identifier}`, self.jwt.read)
       .expect(404);
 
-    res.body.status.should.equal(404);
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(404);
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -194,7 +196,7 @@ describe('API3 READ', function () {
     await new Promise((resolve, reject) => {
       self.instance.ctx.devicestatus.create([doc], async (err) => { // let's insert the document in APIv1's way
 
-        should.not.exist(err);
+        expect(err).toBeUndefined();
         doc._id = doc._id.toString();
         self.cache.nextShouldEql(self.col, doc)
 
@@ -208,13 +210,13 @@ describe('API3 READ', function () {
     let res = await self.instance.get(`${self.url}/${identifier}`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    res.body.result.should.containEql(doc);
+    expect(res.body.status).toBe(200);
+    expect(res.body.result).toMatchObject(doc);
 
     res = await self.instance.delete(`${self.url}/${identifier}?permanent=true`, self.jwt.delete)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     self.cache.nextShouldDeleteLast(self.col)
   });
 

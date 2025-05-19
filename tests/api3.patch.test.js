@@ -1,7 +1,7 @@
 /* eslint require-atomic-updates: 0 */
 'use strict';
 
-require('should');
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 
 describe('API3 PATCH', function() {
   const self = this
@@ -21,8 +21,6 @@ describe('API3 PATCH', function() {
   };
   self.validDoc.identifier = opTools.calculateIdentifier(self.validDoc);
 
-  self.timeout(15000);
-
 
   /**
    * Get document detail for futher processing
@@ -31,12 +29,12 @@ describe('API3 PATCH', function() {
     let res = await self.instance.get(`${self.url}/${identifier}`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     return res.body.result;
   };
 
 
-  before(async () => {
+  beforeAll(async () => {
     self.instance = await instance.create({});
 
     self.app = self.instance.app;
@@ -57,7 +55,7 @@ describe('API3 PATCH', function() {
   });
 
 
-  after(() => {
+  afterAll(() => {
     self.instance.ctx.bus.teardown();
   });
 
@@ -76,8 +74,8 @@ describe('API3 PATCH', function() {
     let res = await self.instance.patch(`${self.url}/FAKE_IDENTIFIER`)
       .expect(401);
 
-    res.body.status.should.equal(401);
-    res.body.message.should.equal('Missing or bad access token or JWT');
+    expect(res.body.status).toBe(401);
+    expect(res.body.message).toBe('Missing or bad access token or JWT');
   });
 
 
@@ -86,7 +84,7 @@ describe('API3 PATCH', function() {
       .send(self.validDoc)
       .expect(404);
 
-    res.body.status.should.equal(404);
+    expect(res.body.status).toBe(404);
   });
 
 
@@ -95,14 +93,14 @@ describe('API3 PATCH', function() {
       .send(self.validDoc)
       .expect(404);
 
-    res.body.status.should.equal(404);
+    expect(res.body.status).toBe(404);
 
     // now let's insert the document for further patching
     res = await self.instance.post(`${self.url}`, self.jwt.create)
       .send(self.validDoc)
       .expect(201);
 
-    res.body.status.should.equal(201);
+    expect(res.body.status).toBe(201);
     self.cache.nextShouldEql(self.col, self.validDoc)
   });
 
@@ -112,8 +110,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { identifier: 'MODIFIED'}))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field identifier cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field identifier cannot be modified by the client');
   });
 
 
@@ -122,8 +120,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { date: self.validDoc.date + 10000 }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field date cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field date cannot be modified by the client');
   });
 
 
@@ -132,8 +130,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { utcOffset: self.utcOffset - 120 }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field utcOffset cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field utcOffset cannot be modified by the client');
   });
 
 
@@ -142,8 +140,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { eventType: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field eventType cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field eventType cannot be modified by the client');
   });
 
 
@@ -152,8 +150,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { device: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field device cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field device cannot be modified by the client');
   });
 
 
@@ -162,8 +160,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { app: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field app cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field app cannot be modified by the client');
   });
 
 
@@ -172,8 +170,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { srvCreated: self.validDoc.date - 10000 }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field srvCreated cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field srvCreated cannot be modified by the client');
   });
 
 
@@ -182,8 +180,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { subject: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field subject cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field subject cannot be modified by the client');
   });
 
 
@@ -192,8 +190,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { srvModified: self.validDoc.date - 100000 }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field srvModified cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field srvModified cannot be modified by the client');
   });
 
 
@@ -202,8 +200,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { modifiedBy: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field modifiedBy cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field modifiedBy cannot be modified by the client');
   });
 
 
@@ -212,8 +210,8 @@ describe('API3 PATCH', function() {
       .send(Object.assign({}, self.validDoc, { isValid: false }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field isValid cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field isValid cannot be modified by the client');
   });
 
 
@@ -224,13 +222,13 @@ describe('API3 PATCH', function() {
       .send(self.validDoc)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
 
     let body = await self.get(self.validDoc.identifier);
-    body.carbs.should.equal(10);
-    body.insulin.should.equal(0.3);
-    body.subject.should.equal(self.subject.apiCreate.name);
-    body.modifiedBy.should.equal(self.subject.apiUpdate.name);
+    expect(body.carbs).toBe(10);
+    expect(body.insulin).toBe(0.3);
+    expect(body.subject).toBe(self.subject.apiCreate.name);
+    expect(body.modifiedBy).toBe(self.subject.apiUpdate.name);
 
     self.cache.nextShouldEql(self.col, body)
   });

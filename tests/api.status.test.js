@@ -1,95 +1,80 @@
-'use strict';
+import request from 'supertest';
+import lang from '../lib/language'; // Renamed
+import { describe, it, expect, beforeAll } from 'vitest';
 
-var request = require('supertest');
-var language = require('../lib/language')();
+describe('Status REST api', () => {
+  let app; // Defined here to be accessible in tests
+  const api = require('../lib/api/');
 
-require('should');
-
-describe('Status REST api', function ( ) {
-  var api = require('../lib/api/');
-  before(function (done) {
+  beforeAll(async () => { // Changed from before to beforeAll and made async
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../lib/server/env')();
     env.settings.enable = ['careportal', 'rawbg'];
     env.settings.authDefaultRoles = 'readable';
     env.api_secret = 'this is my long pass phrase';
-    this.wares = require('../lib/middleware/')(env);
-    this.app = require('express')( );
-    this.app.enable('api');
-    var self = this;
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
-      self.app.use('/api', api(env, ctx));
-      done();
+    require('../lib/middleware/')(env); // Assign to wares - removed wares variable, but kept the call as it might have side effects
+    app = require('express')(); // Assign to app
+    app.enable('api');
+
+    await new Promise(resolve => { // Added promise for async boot
+      require('../lib/server/bootevent')(env, lang()).boot(function booted(ctx) {
+        app.use('/api', api(env, ctx));
+        resolve();
+      });
     });
   });
 
-  it('/status.json', function (done) {
-    request(this.app)
+  it('/status.json', async () => { // Made async
+    const res = await request(app)
       .get('/api/status.json')
-      .expect(200)
-      .end(function (err, res)  {
-        res.body.apiEnabled.should.equal(true);
-        res.body.careportalEnabled.should.equal(true);
-        res.body.settings.enable.length.should.equal(2);
-        res.body.settings.enable.should.containEql('careportal');
-        res.body.settings.enable.should.containEql('rawbg');
-        done( );
-      });
+      .expect(200);
+    expect(res.body.apiEnabled).toBe(true);
+    expect(res.body.careportalEnabled).toBe(true);
+    expect(res.body.settings.enable.length).toBe(2);
+    expect(res.body.settings.enable).toContain('careportal');
+    expect(res.body.settings.enable).toContain('rawbg');
   });
 
-  it('/status.html', function (done) {
-    request(this.app)
+  it('/status.html', async () => { // Made async
+    const res = await request(app)
       .get('/api/status.html')
-      .end(function(err, res) {
-        res.type.should.equal('text/html');
-        res.statusCode.should.equal(200);
-        done();
-      });
+      .expect(200);
+    expect(res.type).toBe('text/html');
+    expect(res.statusCode).toBe(200);
   });
 
-  it('/status.svg', function (done) {
-    request(this.app)
+  it('/status.svg', async () => { // Made async
+    const res = await request(app)
       .get('/api/status.svg')
-      .end(function(err, res) {
-        res.statusCode.should.equal(302);
-        done();
-      });
+      .expect(302); // Status code is 302 for redirect
+    expect(res.statusCode).toBe(302);
   });
 
-  it('/status.txt', function (done) {
-    request(this.app)
+  it('/status.txt', async () => { // Made async
+    const res = await request(app)
       .get('/api/status.txt')
-      .expect(200, 'STATUS OK')
-      .end(function(err, res) {
-        res.type.should.equal('text/plain');
-        res.statusCode.should.equal(200);
-        done();
-      });
+      .expect(200, 'STATUS OK');
+    expect(res.type).toBe('text/plain');
+    expect(res.statusCode).toBe(200);
   });
 
 
-  it('/status.js', function (done) {
-    request(this.app)
+  it('/status.js', async () => { // Made async
+    const res = await request(app)
       .get('/api/status.js')
-      .end(function(err, res) {
-        res.type.should.equal('application/javascript');
-        res.statusCode.should.equal(200);
-        res.text.should.startWith('this.serverSettings =');
-        done();
-      });
+      .expect(200);
+    expect(res.type).toBe('application/javascript');
+    expect(res.statusCode).toBe(200);
+    expect(res.text.startsWith('this.serverSettings =')).toBe(true);
   });
 
-  it('/status.png', function (done) {
-    request(this.app)
+  it('/status.png', async () => { // Made async
+    const res = await request(app)
       .get('/api/status.png')
-      .end(function(err, res) {
-        res.headers.location.should.equal('http://img.shields.io/badge/Nightscout-OK-green.png');
-        res.statusCode.should.equal(302);
-        done();
-      });
+      .expect(302); // Status code is 302 for redirect
+    expect(res.headers.location).toBe('http://img.shields.io/badge/Nightscout-OK-green.png');
+    expect(res.statusCode).toBe(302);
   });
-
-
 });
 

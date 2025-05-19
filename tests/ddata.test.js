@@ -1,44 +1,42 @@
-
 'use strict';
 
-var should = require('should');
+import { describe, it, expect } from 'vitest'; // Added import
+import ddataFactory from '../lib/data/ddata.js';
 
 
 describe('ddata', function ( ) {
   // var sandbox = require('../lib/sandbox')();
   // var env = require('../lib/server/env')();
   var ctx = {};
-  ctx.ddata = require('../lib/data/ddata')();
+  ctx.ddata = ddataFactory(); // Changed from require
 
-  it('should be a module', function (done) {
-    var libddata = require('../lib/data/ddata');
+  it('should be a module', function () {
+    const libddata = ddataFactory; // Changed from require
     var ddata = libddata( );
-    should.exist(ddata);
-    should.exist(libddata);
-    should.exist(libddata.call);
+    expect(ddata).toBeDefined();
+    expect(libddata).toBeDefined();
+    expect(libddata.call).toBeDefined();
     ddata = ctx.ddata.clone( );
-    should.exist(ddata);
-    done( );
+    expect(ddata).toBeDefined();
   });
 
-  it('has #clone( )', function (done) {
-    should.exist(ctx.ddata.treatments);
-    should.exist(ctx.ddata.sgvs);
-    should.exist(ctx.ddata.mbgs);
-    should.exist(ctx.ddata.cals);
-    should.exist(ctx.ddata.profiles);
-    should.exist(ctx.ddata.devicestatus);
-    should.exist(ctx.ddata.lastUpdated);
+  it('has #clone( )', function () {
+    expect(ctx.ddata.treatments).toBeDefined();
+    expect(ctx.ddata.sgvs).toBeDefined();
+    expect(ctx.ddata.mbgs).toBeDefined();
+    expect(ctx.ddata.cals).toBeDefined();
+    expect(ctx.ddata.profiles).toBeDefined();
+    expect(ctx.ddata.devicestatus).toBeDefined();
+    expect(ctx.ddata.lastUpdated).toBeDefined();
     var ddata = ctx.ddata.clone( );
-    should.exist(ddata);
-    should.exist(ddata.treatments);
-    should.exist(ddata.sgvs);
-    should.exist(ddata.mbgs);
-    should.exist(ddata.cals);
-    should.exist(ddata.profiles);
-    should.exist(ddata.devicestatus);
-    should.exist(ddata.lastUpdated);
-    done( );
+    expect(ddata).toBeDefined();
+    expect(ddata.treatments).toBeDefined();
+    expect(ddata.sgvs).toBeDefined();
+    expect(ddata.mbgs).toBeDefined();
+    expect(ddata.cals).toBeDefined();
+    expect(ddata.profiles).toBeDefined();
+    expect(ddata.devicestatus).toBeDefined();
+    expect(ddata.lastUpdated).toBeDefined();
   });
 
   // TODO: ensure partition function gets called via:
@@ -54,7 +52,7 @@ describe('ddata', function ( ) {
   // * ddata.processDurations
   // * ddata.clone
   // * ddata.split
- 
+
 
 });
 

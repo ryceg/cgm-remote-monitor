@@ -1,183 +1,171 @@
 /* eslint require-atomic-updates: 0 */
-/* global should */
-'use strict';
+import { describe, it, beforeAll, afterAll, expect } from 'vitest';
+import * as testConst from './fixtures/api3/const.json';
+import * as apiConst from '../lib/api3/const.json';
+import { create as createInstance } from './fixtures/api3/instance';
+import createAuthSubject from './fixtures/api3/authSubject';
+import { randomString } from './fixtures/api3/utils';
 
-require('should');
+describe('Socket.IO in REST API3', { timeout: 30000 }, () => {
+  let instance;
+  let colName;
+  let urlCol;
+  let urlResource;
+  // let urlHistory; // Unused variable
+  let subject;
+  let jwt;
+  let accessToken;
+  let socket;
+  let docOriginal;
+  let docActual;
+  const identifier = randomString('32', 'aA#'); // let's have a brand new identifier for your testing document
 
-describe('Socket.IO in REST API3', function() {
-  const self = this
-    , testConst = require('./fixtures/api3/const.json')
-    , apiConst = require('../lib/api3/const.json')
-    , instance = require('./fixtures/api3/instance')
-    , authSubject = require('./fixtures/api3/authSubject')
-    , utils = require('./fixtures/api3/utils')
-    ;
-
-  self.identifier = utils.randomString('32', 'aA#'); // let's have a brand new identifier for your testing document
-
-  self.docOriginal = {
-    identifier: self.identifier,
-    eventType: 'Correction Bolus',
-    insulin: 1,
-    date: (new Date()).getTime(),
-    app: testConst.TEST_APP
-  };
-
-  this.timeout(30000);
-
-  before(async () => {
-    self.instance = await instance.create({
+  beforeAll(async () => {
+    instance = await createInstance({
       storageSocket: true
     });
 
-    self.app = self.instance.app;
-    self.env = self.instance.env;
-    self.colName = 'treatments';
-    self.urlCol = `/api/v3/${self.colName}`;
-    self.urlResource = self.urlCol + '/' + self.identifier;
-    self.urlHistory = self.urlCol + '/history';
+    colName = 'treatments';
+    urlCol = `/api/v3/${colName}`;
+    urlResource = `${urlCol}/${identifier}`;
+    // urlHistory = `${urlCol}/history`; // Unused variable
 
-    let authResult = await authSubject(self.instance.ctx.authorization.storage, [
+    let authResult = await createAuthSubject(instance.ctx.authorization.storage, [
       'create',
       'update',
-      'delete'
-    ], self.instance.app);
+      'delete',
+      'denied' // Added denied for the 'should not subscribe by subject with no rights' test
+    ], instance.app);
 
-    self.subject = authResult.subject;
-    self.jwt = authResult.jwt;
-    self.accessToken = authResult.accessToken;
-    self.socket = self.instance.clientSocket;
+    subject = authResult.subject;
+    jwt = authResult.jwt;
+    accessToken = authResult.accessToken;
+    socket = instance.clientSocket;
+
+    docOriginal = {
+      identifier: identifier,
+      eventType: 'Correction Bolus',
+      insulin: 1,
+      date: (new Date()).getTime(),
+      app: testConst.TEST_APP
+    };
   });
 
-
-  after(() => {
-    if(self.instance && self.instance.clientSocket && self.instance.clientSocket.connected) {
-      self.instance.clientSocket.disconnect();
+  afterAll(() => {
+    if(instance && instance.clientSocket && instance.clientSocket.connected) {
+      instance.clientSocket.disconnect();
     }
-    self.instance.ctx.bus.teardown();
+    instance.ctx.bus.teardown();
   });
 
-
-  it('should not subscribe without accessToken', done => {
-    self.socket.emit('subscribe', { }, function (data) {
-      data.success.should.not.equal(true);
-      data.message.should.equal(apiConst.MSG.SOCKET_MISSING_OR_BAD_ACCESS_TOKEN);
-      done();
+  it('should not subscribe without accessToken', () => new Promise(done => {
+    socket.emit('subscribe', { }, function (data) {
+      expect(data.success).not.toBe(true);
+      expect(data.message).toBe(apiConst.MSG.SOCKET_MISSING_OR_BAD_ACCESS_TOKEN);
+      done(null);
     });
-  });
+  }));
 
-
-  it('should not subscribe by invalid accessToken', done => {
-    self.socket.emit('subscribe', { accessToken: 'INVALID' }, function (data) {
-      data.success.should.not.equal(true);
-      data.message.should.equal(apiConst.MSG.SOCKET_MISSING_OR_BAD_ACCESS_TOKEN);
-      done();
+  it('should not subscribe by invalid accessToken', () => new Promise(done => {
+    socket.emit('subscribe', { accessToken: 'INVALID' }, function (data) {
+      expect(data.success).not.toBe(true);
+      expect(data.message).toBe(apiConst.MSG.SOCKET_MISSING_OR_BAD_ACCESS_TOKEN);
+      done(null);
     });
-  });
+  }));
 
-
-  it('should not subscribe by subject with no rights', done => {
-    self.socket.emit('subscribe', { accessToken: self.accessToken.denied }, function (data) {
-      data.success.should.not.equal(true);
-      data.message.should.equal(apiConst.MSG.SOCKET_UNAUTHORIZED_TO_ANY);
-      done();
+  it('should not subscribe by subject with no rights', () => new Promise(done => {
+    socket.emit('subscribe', { accessToken: accessToken.denied }, function (data) {
+      expect(data.success).not.toBe(true);
+      expect(data.message).toBe(apiConst.MSG.SOCKET_UNAUTHORIZED_TO_ANY);
+      done(null);
     });
-  });
+  }));
 
-
-  it('should subscribe by valid accessToken', done => {
+  it('should subscribe by valid accessToken', () => new Promise(done => {
     const cols = ['entries', 'treatments'];
 
-    self.socket.emit('subscribe', {
-      accessToken: self.accessToken.all,
+    socket.emit('subscribe', {
+      accessToken: accessToken.all,
       collections: cols
     }, function (data) {
-      data.success.should.equal(true);
-      should(data.collections.sort()).be.eql(cols);
-      done();
+      expect(data.success).toBe(true);
+      expect(data.collections.sort()).toEqual(cols);
+      done(null);
     });
-  });
+  }));
 
-
-  it('should emit create event on CREATE', done => {
-
-    self.socket.once('create', (event) => {
-      event.colName.should.equal(self.colName);
-      event.doc.should.containEql(self.docOriginal);
+  it('should emit create event on CREATE', () => new Promise(done => {
+    socket.once('create', (event) => {
+      expect(event.colName).toBe(colName);
+      expect(event.doc).toEqual(expect.objectContaining(docOriginal));
       delete event.doc.subject;
-      self.docActual = event.doc;
-      done();
+      docActual = event.doc;
+      done(null);
     });
 
-    self.instance.post(`${self.urlCol}`, self.jwt.create)
-      .send(self.docOriginal)
+    instance.post(`${urlCol}`, jwt.create)
+      .send(docOriginal)
       .expect(201)
       .end((err) => {
-        should.not.exist(err);
+        expect(err).toBeNull();
       });
-  });
+  }));
 
+  it('should emit update event on UPDATE', () => new Promise(done => {
+    docActual.insulin = 0.5;
 
-  it('should emit update event on UPDATE', done => {
-
-    self.docActual.insulin = 0.5;
-
-    self.socket.once('update', (event) => {
-      delete self.docActual.srvModified;
-      event.colName.should.equal(self.colName);
-      event.doc.should.containEql(self.docActual);
+    socket.once('update', (event) => {
+      delete docActual.srvModified;
+      expect(event.colName).toBe(colName);
+      expect(event.doc).toEqual(expect.objectContaining(docActual));
       delete event.doc.subject;
-      self.docActual = event.doc;
-      done();
+      docActual = event.doc;
+      done(null);
     });
 
-    self.instance.put(`${self.urlResource}`, self.jwt.update)
-      .send(self.docActual)
+    instance.put(`${urlResource}`, jwt.update)
+      .send(docActual)
       .expect(200)
       .end((err) => {
-        should.not.exist(err);
-        self.docActual.subject = self.subject.apiUpdate.name;
+        expect(err).toBeNull();
+        docActual.subject = subject.apiUpdate.name; // This was using self.subject before
       });
-  });
+  }));
 
+  it('should emit update event on PATCH', () => new Promise(done => {
+    docActual.carbs = 5;
+    docActual.insulin = 0.4;
 
-  it('should emit update event on PATCH', done => {
-
-    self.docActual.carbs = 5;
-    self.docActual.insulin = 0.4;
-
-    self.socket.once('update', (event) => {
-      delete self.docActual.srvModified;
-      event.colName.should.equal(self.colName);
-      event.doc.should.containEql(self.docActual);
+    socket.once('update', (event) => {
+      delete docActual.srvModified;
+      expect(event.colName).toBe(colName);
+      expect(event.doc).toEqual(expect.objectContaining(docActual));
       delete event.doc.subject;
-      self.docActual = event.doc;
-      done();
+      docActual = event.doc;
+      done(null);
     });
 
-    self.instance.patch(`${self.urlResource}`, self.jwt.update)
-      .send({ 'carbs': self.docActual.carbs, 'insulin': self.docActual.insulin })
+    instance.patch(`${urlResource}`, jwt.update)
+      .send({ 'carbs': docActual.carbs, 'insulin': docActual.insulin })
       .expect(200)
       .end((err) => {
-        should.not.exist(err);
+        expect(err).toBeNull();
       });
-  });
+  }));
 
-
-  it('should emit delete event on DELETE', done => {
-
-    self.socket.once('delete', (event) => {
-      event.colName.should.equal(self.colName);
-      event.identifier.should.equal(self.identifier);
-      done();
+  it('should emit delete event on DELETE', () => new Promise(done => {
+    socket.once('delete', (event) => {
+      expect(event.colName).toBe(colName);
+      expect(event.identifier).toBe(identifier);
+      done(null);
     });
 
-    self.instance.delete(`${self.urlResource}`, self.jwt.delete)
+    instance.delete(`${urlResource}`, jwt.delete)
       .expect(200)
       .end((err) => {
-        should.not.exist(err);
+        expect(err).toBeNull();
       });
-  });
-
+  }));
 });
 

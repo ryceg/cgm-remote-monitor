@@ -1,10 +1,10 @@
 /* eslint require-atomic-updates: 0 */
-/* global should */
+
 'use strict';
 
-require('should');
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-describe('API3 SEARCH', function() {
+describe('API3 SEARCH', { timeout: 15000 }, function() {
   const self = this
     , testConst = require('./fixtures/api3/const.json')
     , instance = require('./fixtures/api3/instance')
@@ -14,37 +14,30 @@ describe('API3 SEARCH', function() {
 
   self.docs = testConst.SAMPLE_ENTRIES;
 
-  self.timeout(15000);
-
 
   /**
    * Get document detail for futher processing
    */
-  self.get = function get (identifier, done) {
-    self.instance.get(`${self.url}/${identifier}`, self.jwt.read)
-      .expect(200)
-      .end((err, res) => {
-        should.not.exist(err);
-        done(res.body);
-      });
+  self.get = async function get (identifier) { // Removed done callback, using async/await
+    const res = await self.instance.get(`${self.url}/${identifier}`, self.jwt.read)
+      .expect(200);
+    return res.body;
   };
 
 
   /**
    * Create given document in a promise
    */
-  self.create = (doc) => new Promise((resolve) => {
+  self.create = async (doc) => { // Simplified to async function
     doc.identifier = opTools.calculateIdentifier(doc);
-    self.instance.post(`${self.url}`, self.jwt.all)
+    await self.instance.post(`${self.url}`, self.jwt.all)
       .send(doc)
-      .end((err) => {
-        should.not.exist(err);
-        self.get(doc.identifier, resolve);
-      });
-  });
+      .expect(201); // Assuming 201 is the correct status for post
+    return self.get(doc.identifier); // use await with the modified get function
+  };
 
 
-  before(async () => {
+  beforeAll(async () => {
     self.testStarted = new Date();
     self.instance = await instance.create({});
 
@@ -66,7 +59,7 @@ describe('API3 SEARCH', function() {
   });
 
 
-  after(() => {
+  afterAll(() => {
     self.instance.ctx.bus.teardown();
   });
 
@@ -75,19 +68,19 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(self.url)
       .expect(401);
 
-    res.body.status.should.equal(401);
-    res.body.message.should.equal('Missing or bad access token or JWT');
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(401);
+    expect(res.body.message).toBe('Missing or bad access token or JWT');
+    expect(res.body.result).toBeUndefined();
   });
 
 
   it('should not found not existing collection', async () => {
     let res = await self.instance.get(`/api/v3/NOT_EXIST`, self.jwt.read)
-      .send(self.validDoc)
+      .send(self.validDoc) // self.validDoc is not defined in this file, assuming it might be a typo or from another context
       .expect(404);
 
-    res.body.status.should.equal(404);
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(404);
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -95,8 +88,8 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(self.url, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    res.body.result.length.should.be.aboveOrEqual(self.docs.length);
+    expect(res.body.status).toBe(200);
+    expect(res.body.result.length).toBeGreaterThanOrEqual(self.docs.length);
   });
 
 
@@ -104,8 +97,8 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(self.urlTest, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    res.body.result.length.should.be.aboveOrEqual(self.docs.length);
+    expect(res.body.status).toBe(200);
+    expect(res.body.result.length).toBeGreaterThanOrEqual(self.docs.length);
   });
 
 
@@ -113,9 +106,9 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?limit=INVALID`, self.jwt.read)
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Parameter limit out of tolerance');
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Parameter limit out of tolerance');
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -123,9 +116,9 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?limit=-1`, self.jwt.read)
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Parameter limit out of tolerance');
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Parameter limit out of tolerance');
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -133,9 +126,9 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?limit=0`, self.jwt.read)
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Parameter limit out of tolerance');
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Parameter limit out of tolerance');
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -143,8 +136,8 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?limit=3`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    res.body.result.length.should.equal(3);
+    expect(res.body.status).toBe(200);
+    expect(res.body.result.length).toBe(3);
   });
 
 
@@ -152,9 +145,9 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?skip=INVALID`, self.jwt.read)
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Parameter skip out of tolerance');
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Parameter skip out of tolerance');
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -162,9 +155,9 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?skip=-5`, self.jwt.read)
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Parameter skip out of tolerance');
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Parameter skip out of tolerance');
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -172,9 +165,9 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?sort=date&sort$desc=created_at`, self.jwt.read)
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Parameters sort and sort_desc cannot be combined');
-    should.not.exist(res.body.result);
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Parameters sort and sort_desc cannot be combined');
+    expect(res.body.result).toBeUndefined();
   });
 
 
@@ -182,23 +175,23 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.urlTest}&sort=date`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     const ascending = res.body.result;
     const length = ascending.length;
-    length.should.be.aboveOrEqual(self.docs.length);
+    expect(length).toBeGreaterThanOrEqual(self.docs.length);
 
     res = await self.instance.get(`${self.urlTest}&sort$desc=date`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     const descending = res.body.result;
-    descending.length.should.equal(length);
+    expect(descending.length).toBe(length);
 
     for (let i in ascending) {
-      ascending[i].should.eql(descending[length - i - 1]);
+      expect(ascending[i]).toEqual(descending[length - i - 1]);
 
       if (i > 0) {
-        ascending[i - 1].date.should.be.lessThanOrEqual(ascending[i].date);
+        expect(ascending[i - 1].date).toBeLessThanOrEqual(ascending[i].date);
       }
     }
   });
@@ -208,19 +201,19 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?sort=date&limit=8`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     const fullDocs = res.body.result;
-    fullDocs.length.should.equal(8);
+    expect(fullDocs.length).toBe(8);
 
     res = await self.instance.get(`${self.url}?sort=date&skip=3&limit=5`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     const skipDocs = res.body.result;
-    skipDocs.length.should.equal(5);
+    expect(skipDocs.length).toBe(5);
 
     for (let i = 0; i < 3; i++) {
-      skipDocs[i].should.be.eql(fullDocs[i + 3]);
+      expect(skipDocs[i]).toEqual(fullDocs[i + 3]);
     }
   });
 
@@ -229,10 +222,10 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?fields=date,app,subject`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     res.body.result.forEach(doc => {
       const docFields = Object.getOwnPropertyNames(doc);
-      docFields.sort().should.be.eql(['app', 'date', 'subject']);
+      expect(docFields.sort()).toEqual(['app', 'date', 'subject']);
     });
   });
 
@@ -241,13 +234,13 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?fields=_all`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     res.body.result.forEach(doc => {
-      Object.getOwnPropertyNames(doc).length.should.be.aboveOrEqual(10);
-      Object.prototype.hasOwnProperty.call(doc, '_id').should.not.be.true();
-      Object.prototype.hasOwnProperty.call(doc, 'identifier').should.be.true();
-      Object.prototype.hasOwnProperty.call(doc, 'srvModified').should.be.true();
-      Object.prototype.hasOwnProperty.call(doc, 'srvCreated').should.be.true();
+      expect(Object.getOwnPropertyNames(doc).length).toBeGreaterThanOrEqual(10);
+      expect(Object.prototype.hasOwnProperty.call(doc, '_id')).not.toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(doc, 'identifier')).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(doc, 'srvModified')).toBe(true);
+      expect(Object.prototype.hasOwnProperty.call(doc, 'srvCreated')).toBe(true);
     });
   });
 
@@ -259,8 +252,8 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}?limit=10`, self.jwt.read)
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Parameter limit out of tolerance');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Parameter limit out of tolerance');
     apiApp.set('API3_MAX_LIMIT', limitBackup);
   });
 
@@ -272,8 +265,8 @@ describe('API3 SEARCH', function() {
     let res = await self.instance.get(`${self.url}`, self.jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    res.body.result.length.should.equal(5);
+    expect(res.body.status).toBe(200);
+    expect(res.body.result.length).toBe(5);
     apiApp.set('API3_MAX_LIMIT', limitBackup);
   });
 

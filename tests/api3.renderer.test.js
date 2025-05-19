@@ -1,17 +1,17 @@
 /* eslint require-atomic-updates: 0 */
 'use strict';
 
-require('should');
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import _ from 'lodash';
+import xml2js from 'xml2js';
+import { parse as csvParse } from 'csv-parse/sync';
 
-describe('API3 output renderers', function() {
+describe('API3 output renderers', { timeout: 15000 }, function() {
   const self = this
     , testConst = require('./fixtures/api3/const.json')
     , instance = require('./fixtures/api3/instance')
     , authSubject = require('./fixtures/api3/authSubject')
     , opTools = require('../lib/api3/shared/operationTools')
-    , _ = require('lodash')
-    , xml2js = require('xml2js')
-    , csvParse = require('csv-parse/lib/sync')
     ;
 
   self.historyFrom = (new Date()).getTime() - 1000; // starting timestamp for HISTORY operations
@@ -33,10 +33,8 @@ describe('API3 output renderers', function() {
     skip_empty_lines: true
   };
 
-  self.timeout(15000);
 
-
-  before(async () => {
+  beforeAll(async () => {
     self.instance = await instance.create({});
 
     self.app = self.instance.app;
@@ -56,7 +54,7 @@ describe('API3 output renderers', function() {
   });
 
 
-  after(() => {
+  afterAll(() => {
     self.instance.server.close();
   });
 
@@ -79,7 +77,7 @@ describe('API3 output renderers', function() {
    */
   self.checkProps = function checkProps (obj1, obj2) {
     for (let propName in obj1) {
-      obj1[propName].toString().should.eql(obj2[propName].toString());
+      expect(obj1[propName].toString()).toEqual(obj2[propName].toString());
     }
   };
 
@@ -93,7 +91,7 @@ describe('API3 output renderers', function() {
   self.checkItems = function checkItems (arrModel, arr) {
     for (let itemModel of arrModel) {
       const item = _.find(arr, (doc) => doc.identifier === itemModel.identifier);
-      item.should.not.be.empty();
+      expect(item).not.toBeUndefined();
       self.checkProps(itemModel, item);
     }
   };
@@ -108,13 +106,13 @@ describe('API3 output renderers', function() {
    * @returns {Promise}
    */
   self.checkXmlItems = async function checkXmlItems (arrModel, xmlText) {
-    xmlText.should.startWith('<?xml version=\'1.0\' encoding=\'utf-8\'?>');
+    expect(xmlText.startsWith('<?xml version=\'1.0\' encoding=\'utf-8\'?>')).toBe(true);
 
     const xml = await self.xmlParser.parseStringPromise(xmlText);
-    xml.items.should.not.be.empty();
+    expect(xml.items).not.toBeUndefined();
     let items = xml.items.item;
-    items.should.be.Array();
-    items.length.should.be.aboveOrEqual(arrModel.length);
+    expect(Array.isArray(items)).toBe(true);
+    expect(items.length).toBeGreaterThanOrEqual(arrModel.length);
 
     self.checkItems(arrModel, items);
   };
@@ -129,11 +127,12 @@ describe('API3 output renderers', function() {
    * @returns {Promise}
    */
   self.checkCsvItems = async function checkXmlItems (arrModel, csvText) {
-    csvText.should.not.be.empty();
+    expect(csvText).not.toBeUndefined();
+    expect(csvText).not.toEqual('');
 
     const items = csvParse(csvText, self.csvParserOptions);
-    items.should.be.Array();
-    items.length.should.be.aboveOrEqual(arrModel.length);
+    expect(Array.isArray(items)).toBe(true);
+    expect(items.length).toBeGreaterThanOrEqual(arrModel.length);
 
     self.checkItems(arrModel, items);
   };
@@ -147,7 +146,7 @@ describe('API3 output renderers', function() {
         .send(doc)
         .expect(201);
 
-      res.body.status.should.equal(201);
+      expect(res.body.status).toBe(201);
 
       res = await self.instance.get(`${self.url}/${doc.identifier}`, self.jwt.read)
         .expect(200);
@@ -167,9 +166,9 @@ describe('API3 output renderers', function() {
     async function check406 (request) {
       const res = await request
         .expect(406);
-      res.status.should.equal(406);
-      res.body.message.should.eql('Unsupported output format requested');
-      should.not.exist(res.body.result);
+      expect(res.status).toBe(406);
+      expect(res.body.message).toEqual('Unsupported output format requested');
+      expect(res.body.result).toBeUndefined();
     }
 
     await check406(self.instance.get(`${self.url}/${self.doc1.identifier}.ttf?fields=_all`, self.jwt.read));
@@ -190,17 +189,17 @@ describe('API3 output renderers', function() {
     let res = await self.instance.get(`${self.url}/${self.doc1.identifier}.xml?fields=_all`, self.jwt.read)
       .expect(200);
 
-    res.text.should.startWith('<?xml version=\'1.0\' encoding=\'utf-8\'?>');
+    expect(res.text.startsWith('<?xml version=\'1.0\' encoding=\'utf-8\'?>')).toBe(true);
 
     const xml = await self.xmlParser.parseStringPromise(res.text);
-    xml.item.should.not.be.empty();
+    expect(xml.item).not.toBeUndefined();
     self.checkProps(self.doc1, xml.item);
 
     let res2 = await self.instance.get(`${self.url}/${self.doc1.identifier}?fields=_all`, self.jwt.read)
       .set('Accept', 'application/xml')
       .expect(200);
 
-    res.text.should.eql(res2.text);
+    expect(res.text).toEqual(res2.text);
   });
 
 
@@ -214,7 +213,7 @@ describe('API3 output renderers', function() {
       .set('Accept', 'text/csv')
       .expect(200);
 
-    res.text.should.eql(res2.text);
+    expect(res.text).toEqual(res2.text);
   });
 
 
@@ -228,7 +227,7 @@ describe('API3 output renderers', function() {
       .set('Accept', 'application/xml')
       .expect(200);
 
-    res.text.should.be.eql(res2.text);
+    expect(res.text).toEqual(res2.text);
   });
 
 
@@ -242,7 +241,7 @@ describe('API3 output renderers', function() {
       .set('Accept', 'text/csv')
       .expect(200);
 
-    res.text.should.be.eql(res2.text);
+    expect(res.text).toEqual(res2.text);
   });
 
 
@@ -256,7 +255,7 @@ describe('API3 output renderers', function() {
       .set('Accept', 'application/xml')
       .expect(200);
 
-    res.text.should.be.eql(res2.text);
+    expect(res.text).toEqual(res2.text);
   });
 
 
@@ -270,7 +269,7 @@ describe('API3 output renderers', function() {
       .set('Accept', 'text/csv')
       .expect(200);
 
-    res.text.should.be.eql(res2.text);
+    expect(res.text).toEqual(res2.text);
   });
 
 
@@ -281,7 +280,7 @@ describe('API3 output renderers', function() {
         .query({ 'permanent': 'true' })
         .expect(200);
 
-      res.body.status.should.equal(200);
+      expect(res.body.status).toBe(200);
       self.cache.nextShouldDeleteLast(self.col);
     }
 

@@ -1,165 +1,166 @@
-'use strict';
+import { describe, test, beforeAll, beforeEach, afterEach, afterAll, expect } from 'vitest';
+import request from 'supertest';
+import load from './fixtures/load';
+import getLanguageInstance from '../lib/language';
+import express from 'express';
+import getEnv from '../lib/server/env';
+import initMiddleware from '../lib/middleware/';
+import initBootEvent from '../lib/server/bootevent';
+import entriesApi from '../lib/api/entries/';
+import entriesServer from '../lib/server/entries';
 
-var request = require('supertest');
-var load = require('./fixtures/load');
-var should = require('should');
-var language = require('../lib/language')();
+const language = getLanguageInstance();
 
-describe('authed REST api', function ( ) {
-  var entries = require('../lib/api/entries/');
+describe('authed REST api', () => {
+  let self = {}; // Using an object to hold context similar to 'this' in Mocha
 
-  this.timeout(20000);
+  // this.timeout(20000); // Vitest has default timeouts or can be configured per test/globally
 
-  before(function (done) {
-    var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
+  beforeAll(async () => {
+    const known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    const env = getEnv();
     env.settings.authDefaultRoles = 'readable';
-    this.wares = require('../lib/middleware/')(env);
-    this.archive = null;
-    this.app = require('express')( );
-    this.app.enable('api');
-    var self = this;
+    self.wares = initMiddleware(env);
+    self.archive = null;
+    self.app = express();
+    self.app.enable('api');
     self.known_key = known;
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
-      self.app.use('/', entries(self.app, self.wares, ctx, env));
-      self.archive = require('../lib/server/entries')(env, ctx);
 
-      var creating = load('json');
-      // creating.push({type: 'sgv', sgv: 100, date: Date.now()});
-      self.archive.create(creating, done);
+    await new Promise((resolve, reject) => {
+      initBootEvent(env, language).boot(function booted (ctx) {
+        self.app.use('/', entriesApi(self.app, self.wares, ctx, env));
+        self.archive = entriesServer(env, ctx);
+        const creating = load('json');
+        self.archive.create(creating, (err) => {
+          if (err) return reject(err);
+          resolve();
+        });
+      });
     });
   });
 
-  beforeEach(function (done) {
-    var creating = load('json');
+  beforeEach(async () => {
+    const creating = load('json');
     creating.push({type: 'sgv', sgv: 100, date: Date.now()});
-    this.archive.create(creating, done);
+    await new Promise((resolve, reject) => {
+      self.archive.create(creating, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   });
 
-  afterEach(function (done) {
-    this.archive( ).remove({ }, done);
+  afterEach(async () => {
+    await new Promise((resolve, reject) => {
+      self.archive().remove({ }, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   });
 
-  after(function (done) {
-    this.archive( ).remove({ }, done);
+  afterAll(async () => {
+    await new Promise((resolve, reject) => {
+      self.archive().remove({ }, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
   });
 
-  it('disallow unauthorized POST', function (done) {
-    var app = this.app;
-
-    var new_entry = {type: 'sgv', sgv: 100, date: Date.now() };
+  test('disallow unauthorized POST', async () => {
+    const app = self.app;
+    const new_entry = {type: 'sgv', sgv: 100, date: Date.now() };
     new_entry.dateString = new Date(new_entry.date).toISOString( );
-    request(app)
+
+    const res = await request(app)
       .post('/entries.json?')
       .send([new_entry])
-      .expect(401)
-      .end(function (err, res) {
-        res.body.status.should.equal(401);
-        res.body.message.should.equal('Unauthorized');
-        should.exist(res.body.description);
-        done(err);
-      });
+      .expect(401);
+
+    expect(res.body.status).toBe(401);
+    expect(res.body.message).toBe('Unauthorized');
+    expect(res.body.description).toBeDefined();
   });
 
-  it('/entries/preview', function (done) {
-    var known_key = this.known_key;
-    request(this.app)
+  test('/entries/preview', async () => {
+    const known_key = self.known_key;
+    const res = await request(self.app)
       .post('/entries/preview.json')
       .set('api-secret', known_key)
       .send(load('json'))
-      .expect(201)
-      .end(function (err, res) {
-        res.body.should.be.instanceof(Array).and.have.lengthOf(30);
-        done();
-      });
+      .expect(201);
+
+    expect(res.body).toBeInstanceOf(Array);
+    expect(res.body.length).toBe(30);
   });
 
-  it('allow authorized POST', function (done) {
-    var app = this.app;
-    var known_key = this.known_key;
+  test('allow authorized POST', async () => {
+    const app = self.app;
+    const known_key = self.known_key;
 
-    var new_entry = {type: 'sgv', sgv: 100, date: Date.now() };
+    const new_entry = {type: 'sgv', sgv: 100, date: Date.now() };
     new_entry.dateString = new Date(new_entry.date).toISOString( );
-    request(app)
+
+    const postRes = await request(app)
       .post('/entries.json?')
       .set('api-secret', known_key)
       .send([new_entry])
-      .expect(200)
-      .end(function (err, res) {
-        res.body.should.be.instanceof(Array).and.have.lengthOf(1);
-        request(app)
-          .get('/slice/entries/dateString/sgv/' + new_entry.dateString.split('T')[0] + '.json')
-          .expect(200)
-          .end(function (err, res) {
-            res.body.should.be.instanceof(Array).and.have.lengthOf(1);
-            
-            if (err) {
-              done(err);
-            } else {
-              request(app)
-                .delete('/entries/sgv?find[dateString]=' + new_entry.dateString)
-                .set('api-secret', known_key)
-                .expect(200)
-                .end(function (err) {
-                  done(err);
-                });
-              }
-          });
-      });
+      .expect(200);
+
+    expect(postRes.body).toBeInstanceOf(Array);
+    expect(postRes.body.length).toBe(1);
+
+    const getRes = await request(app)
+      .get('/slice/entries/dateString/sgv/' + new_entry.dateString.split('T')[0] + '.json')
+      .expect(200);
+
+    expect(getRes.body).toBeInstanceOf(Array);
+    expect(getRes.body.length).toBe(1);
+
+    await request(app)
+      .delete('/entries/sgv?find[dateString]=' + new_entry.dateString)
+      .set('api-secret', known_key)
+      .expect(200);
   });
 
-  it('disallow deletes unauthorized', function (done) {
-    var app = this.app;
+  test('disallow deletes unauthorized', async () => {
+    const app = self.app;
 
-    request(app)
+    const getRes1 = await request(app)
       .get('/entries.json?find[dateString][$gte]=2014-07-18')
-      .expect(200)
-      .end(function (err, res) {
-        res.body.should.be.instanceof(Array).and.have.lengthOf(10);
-        request(app)
-          .delete('/entries/sgv?find[dateString][$gte]=2014-07-18&find[dateString][$lte]=2014-07-20')
-          // .set('api-secret', 'missing')
-          .expect(401)
-          .end(function (err) {
-            if (err) {
-              done(err);
-            } else {
-              request(app)
-                .get('/entries/sgv.json?find[dateString][$gte]=2014-07-18&find[dateString][$lte]=2014-07-20')
-                .expect(200)
-                .end(function (err, res) {
-                  res.body.should.be.instanceof(Array).and.have.lengthOf(10);
-                  done();
-                });
-            }
-          });
-      });
-  });
+      .expect(200);
 
-  it('allow deletes when authorized', function (done) {
-    var app = this.app;
+    expect(getRes1.body).toBeInstanceOf(Array);
+    expect(getRes1.body.length).toBe(10);
 
-    request(app)
+    await request(app)
       .delete('/entries/sgv?find[dateString][$gte]=2014-07-18&find[dateString][$lte]=2014-07-20')
-      .set('api-secret', this.known_key)
-      .expect(200)
-      .end(function (err) {
-        if (err) {
-          done(err);
-        } else {
-          request(app)
-            .get('/entries/sgv.json?find[dateString][$gte]=2014-07-18&find[dateString][$lte]=2014-07-20')
-            .expect(200)
-            .end(function (err, res) {
-              res.body.should.be.instanceof(Array).and.have.lengthOf(0);
-              done();
-            });
-        }
-      });
+      .expect(401);
+
+    const getRes2 = await request(app)
+      .get('/entries/sgv.json?find[dateString][$gte]=2014-07-18&find[dateString][$lte]=2014-07-20')
+      .expect(200);
+
+    expect(getRes2.body).toBeInstanceOf(Array);
+    expect(getRes2.body.length).toBe(10);
   });
 
+  test('allow deletes when authorized', async () => {
+    const app = self.app;
 
+    await request(app)
+      .delete('/entries/sgv?find[dateString][$gte]=2014-07-18&find[dateString][$lte]=2014-07-20')
+      .set('api-secret', self.known_key)
+      .expect(200);
 
+    const getRes = await request(app)
+      .get('/entries/sgv.json?find[dateString][$gte]=2014-07-18&find[dateString][$lte]=2014-07-20')
+      .expect(200);
+
+    expect(getRes.body).toBeInstanceOf(Array);
+    expect(getRes.body.length).toBe(0);
+  });
 });

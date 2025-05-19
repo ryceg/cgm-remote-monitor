@@ -1,8 +1,5 @@
-
-'use strict';
-
-require('should');
-var language = require('../lib/language')();
+import { describe, it, expect, afterEach, vi, afterAll } from 'vitest';
+import language from '../lib/language';
 
 const ctx = {};
 
@@ -33,19 +30,18 @@ mockClient.headers = function () {return {};}
 
 const adminnotifies = require('../lib/adminnotifies')(ctx);
 
-var window = {};
-//global.window = window;
+// global.window = window;
+// window.setTimeout = function () { return; }
+vi.stubGlobal('window', { setTimeout: () => {} });
 
-window.setTimeout = function () { return; }
 
-describe('adminnotifies', function ( ) {
+describe('adminnotifies', () => {
 
-    after( function tearDown(done) {
-        delete global.window;
-        done();
+    afterAll(() => {
+        vi.unstubAllGlobals();
     });
 
-    it('should aggregate a message', function () {
+    it('should aggregate a message', () => {
 
         const notify = {
             title: 'Foo'
@@ -57,7 +53,7 @@ describe('adminnotifies', function ( ) {
 
         const notifies = adminnotifies.getNotifies();
 
-        notifies.length.should.equal(1);
+        expect(notifies.length).toBe(1);
       });
 
       /*
@@ -96,8 +92,8 @@ describe('adminnotifies', function ( ) {
 
         mockDrawer.html = function (html) {
             console.log(html);
-            html.indexOf('You have administration messages').should.be.greaterThan(0);
-            html.indexOf('Event repeated 2 times').should.be.greaterThan(0);
+            expect(html.indexOf('You have administration messages')).toBeGreaterThan(0);
+            expect(html.indexOf('Event repeated 2 times')).toBeGreaterThan(0);
             done();
         }
 

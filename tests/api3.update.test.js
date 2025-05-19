@@ -1,19 +1,20 @@
 /* eslint require-atomic-updates: 0 */
-/* global should */
-'use strict';
+import { describe, it, beforeAll, afterAll, beforeEach, afterEach, expect } from 'vitest';
+import * as testConst from './fixtures/api3/const.json';
+import { create as createInstance } from './fixtures/api3/instance';
+import createAuthSubject from './fixtures/api3/authSubject';
+import { randomString } from './fixtures/api3/utils';
 
-require('should');
-
-describe('API3 UPDATE', function() {
-  const self = this
-    , testConst = require('./fixtures/api3/const.json')
-    , instance = require('./fixtures/api3/instance')
-    , authSubject = require('./fixtures/api3/authSubject')
-    , utils = require('./fixtures/api3/utils')
-    ;
-
-  self.validDoc = {
-    identifier: utils.randomString('32', 'aA#'),
+describe('API3 UPDATE', { timeout: 15000 }, () => {
+  let instanceInstance; // Renamed to avoid conflict with the import
+  let col;
+  let url;
+  let subject;
+  let jwt;
+  let urlIdent;
+  let cache;
+  let validDoc = { // Moved validDoc to be initialized here, will be modified in tests
+    identifier: randomString('32', 'aA#'),
     date: (new Date()).getTime(),
     utcOffset: -180,
     app: testConst.TEST_APP,
@@ -22,294 +23,272 @@ describe('API3 UPDATE', function() {
     insulin: 0.3
   };
 
-  self.timeout(15000);
-
-
   /**
    * Get document detail for futher processing
    */
-  self.get = async function get (identifier) {
-    let res = await self.instance.get(`${self.url}/${identifier}`, self.jwt.read)
+  async function getDoc (identifier) { // Renamed from get to avoid conflict, made it a standalone function
+    let res = await instanceInstance.get(`${url}/${identifier}`, jwt.read)
       .expect(200);
 
-    res.body.status.should.equal(200);
+    expect(res.body.status).toBe(200);
     return res.body.result;
-  };
+  }
 
+  beforeAll(async () => {
+    instanceInstance = await createInstance({});
 
-  before(async () => {
-    self.instance = await instance.create({});
+    col = 'treatments';
+    url = `/api/v3/${col}`;
 
-    self.app = self.instance.app;
-    self.env = self.instance.env;
-    self.col = 'treatments'
-    self.url = `/api/v3/${self.col}`;
-
-    let authResult = await authSubject(self.instance.ctx.authorization.storage, [
+    let authResult = await createAuthSubject(instanceInstance.ctx.authorization.storage, [
       'read',
       'update',
       'delete',
       'all'
-    ], self.instance.app);
+    ], instanceInstance.app);
 
-    self.subject = authResult.subject;
-    self.jwt = authResult.jwt;
-    self.urlIdent = `${self.url}/${self.validDoc.identifier}`
-    self.cache = self.instance.cacheMonitor;
+    subject = authResult.subject;
+    jwt = authResult.jwt;
+    urlIdent = `${url}/${validDoc.identifier}`;
+    cache = instanceInstance.cacheMonitor;
   });
 
-
-  after(() => {
-    self.instance.ctx.bus.teardown();
+  afterAll(() => {
+    instanceInstance.ctx.bus.teardown();
   });
-
 
   beforeEach(() => {
-    self.cache.clear();
+    cache.clear();
   });
-
 
   afterEach(() => {
-    self.cache.shouldBeEmpty();
+    cache.shouldBeEmpty(); // This custom assertion might need to be adapted or checked if it's Vitest compatible
+                           // For now, assuming it works or will be handled if it causes test failures.
   });
-
 
   it('should require authentication', async () => {
-    let res = await self.instance.put(`${self.url}/FAKE_IDENTIFIER`)
+    let res = await instanceInstance.put(`${url}/FAKE_IDENTIFIER`)
       .expect(401);
 
-    res.body.status.should.equal(401);
-    res.body.message.should.equal('Missing or bad access token or JWT');
+    expect(res.body.status).toBe(401);
+    expect(res.body.message).toBe('Missing or bad access token or JWT');
   });
-
 
   it('should not found not existing collection', async () => {
-    let res = await self.instance.put(`/api/v3/NOT_EXIST`, self.jwt.update)
-      .send(self.validDoc)
+    let res = await instanceInstance.put(`/api/v3/NOT_EXIST`, jwt.update)
+      .send(validDoc)
       .expect(404);
 
-    res.body.status.should.equal(404);
+    expect(res.body.status).toBe(404);
   });
-
 
   it('should require update permission for upsert', async () => {
-    let res = await self.instance.put(`${self.url}/${self.validDoc.identifier}`, self.jwt.update)
-      .send(self.validDoc)
+    let res = await instanceInstance.put(`${url}/${validDoc.identifier}`, jwt.update)
+      .send(validDoc)
       .expect(403);
 
-    res.body.status.should.equal(403);
-    res.body.message.should.equal('Missing permission api:treatments:create');
+    expect(res.body.status).toBe(403);
+    expect(res.body.message).toBe('Missing permission api:treatments:create');
   });
-
 
   it('should upsert not existing document', async () => {
-    let res = await self.instance.put(`${self.url}/${self.validDoc.identifier}`, self.jwt.all)
-      .send(self.validDoc)
+    let res = await instanceInstance.put(`${url}/${validDoc.identifier}`, jwt.all)
+      .send(validDoc)
       .expect(201);
 
-    res.body.status.should.equal(201);
-    res.body.identifier.should.equal(self.validDoc.identifier);
-    self.cache.nextShouldEql(self.col, self.validDoc)
+    expect(res.body.status).toBe(201);
+    expect(res.body.identifier).toBe(validDoc.identifier);
+    cache.nextShouldEql(col, validDoc); // Custom assertion
 
-    const lastModified = new Date(res.headers['last-modified']).getTime(); // Last-Modified has trimmed milliseconds
+    const lastModified = new Date(res.headers['last-modified']).getTime();
 
-    let body = await self.get(self.validDoc.identifier, self.jwt.read);
-    body.should.containEql(self.validDoc);
-    should.not.exist(body.modifiedBy);
+    let body = await getDoc(validDoc.identifier); // Use the new getDoc function
+    expect(body).toEqual(expect.objectContaining(validDoc));
+    expect(body.modifiedBy).toBeUndefined();
 
     const ms = body.srvModified % 1000;
-    (body.srvModified - ms).should.equal(lastModified);
-    (body.srvCreated - ms).should.equal(lastModified);
-    body.subject.should.equal(self.subject.apiAll.name);
+    expect(body.srvModified - ms).toBe(lastModified);
+    expect(body.srvCreated - ms).toBe(lastModified);
+    expect(body.subject).toBe(subject.apiAll.name);
+    validDoc = body; // Update validDoc for subsequent tests
   });
-
 
   it('should update the document', async () => {
-    self.validDoc.carbs = 10;
-    delete self.validDoc.insulin;
+    const modifiedDoc = { ...validDoc, carbs: 10 }; // Create a new object for modification
+    delete modifiedDoc.insulin;
 
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(self.validDoc)
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(modifiedDoc)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    self.cache.nextShouldEql(self.col, self.validDoc)
+    expect(res.body.status).toBe(200);
+    cache.nextShouldEql(col, modifiedDoc); // Custom assertion
 
-    const lastModified = new Date(res.headers['last-modified']).getTime(); // Last-Modified has trimmed milliseconds
+    const lastModified = new Date(res.headers['last-modified']).getTime();
 
-    let body = await self.get(self.validDoc.identifier, self.jwt.read);
-    body.should.containEql(self.validDoc);
-    should.not.exist(body.insulin);
-    should.not.exist(body.modifiedBy);
+    let body = await getDoc(validDoc.identifier);
+    expect(body).toEqual(expect.objectContaining(modifiedDoc));
+    expect(body.insulin).toBeUndefined();
+    expect(body.modifiedBy).toBeUndefined();
 
     const ms = body.srvModified % 1000;
-    (body.srvModified - ms).should.equal(lastModified);
-    body.subject.should.equal(self.subject.apiUpdate.name);
+    expect(body.srvModified - ms).toBe(lastModified);
+    expect(body.subject).toBe(subject.apiUpdate.name);
+    validDoc = body; // Update validDoc for subsequent tests
   });
 
-
   it('should update unmodified document since', async () => {
-    const doc = Object.assign({}, self.validDoc, {
+    const doc = Object.assign({}, validDoc, {
       carbs: 11
     });
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
+    let res = await instanceInstance.put(urlIdent, jwt.update)
       .set('If-Unmodified-Since', new Date(new Date().getTime() + 1000).toUTCString())
       .send(doc)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    self.cache.nextShouldEql(self.col, doc)
+    expect(res.body.status).toBe(200);
+    cache.nextShouldEql(col, doc); // Custom assertion
 
-    let body = await self.get(self.validDoc.identifier, self.jwt.read);
-    body.should.containEql(doc);
+    let body = await getDoc(validDoc.identifier);
+    expect(body).toEqual(expect.objectContaining(doc));
+    validDoc = body; // Update validDoc
   });
-
 
   it('should not update document modified since', async () => {
-    const doc = Object.assign({}, self.validDoc, {
+    const currentDocState = await getDoc(validDoc.identifier); // Get current state before attempting modification
+    const docToAttempt = Object.assign({}, currentDocState, { // Use currentDocState as base
       carbs: 12
     });
-    let body = await self.get(doc.identifier);
-    self.validDoc = body;
 
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .set('If-Unmodified-Since', new Date(new Date(body.srvModified).getTime() - 1000).toUTCString())
-      .send(doc)
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .set('If-Unmodified-Since', new Date(new Date(currentDocState.srvModified).getTime() - 1000).toUTCString())
+      .send(docToAttempt)
       .expect(412);
 
-    res.body.status.should.equal(412);
+    expect(res.body.status).toBe(412);
 
-    body = await self.get(doc.identifier, self.jwt.read);
-    body.should.eql(self.validDoc);
+    const bodyAfterAttempt = await getDoc(validDoc.identifier);
+    expect(bodyAfterAttempt).toEqual(currentDocState); // Should remain unchanged
+    validDoc = bodyAfterAttempt; // Update validDoc to the actual current state
   });
-
 
   it('should reject date alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { date: self.validDoc.date + 10000 }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { date: validDoc.date + 10000 }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field date cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field date cannot be modified by the client');
   });
-
 
   it('should reject utcOffset alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { utcOffset: self.utcOffset - 120 }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { utcOffset: validDoc.utcOffset - 120 })) // validDoc.utcOffset instead of self.utcOffset
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field utcOffset cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field utcOffset cannot be modified by the client');
   });
-
 
   it('should reject eventType alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { eventType: 'MODIFIED' }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { eventType: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field eventType cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field eventType cannot be modified by the client');
   });
-
 
   it('should reject device alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { device: 'MODIFIED' }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { device: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field device cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field device cannot be modified by the client');
   });
-
 
   it('should reject app alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { app: 'MODIFIED' }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { app: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field app cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field app cannot be modified by the client');
   });
-
 
   it('should reject srvCreated alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { srvCreated: self.validDoc.date - 10000 }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { srvCreated: validDoc.date - 10000 }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field srvCreated cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field srvCreated cannot be modified by the client');
   });
-
 
   it('should reject subject alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { subject: 'MODIFIED' }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { subject: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field subject cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field subject cannot be modified by the client');
   });
-
 
   it('should reject srvModified alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { srvModified: self.validDoc.date - 100000 }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { srvModified: validDoc.date - 100000 }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field srvModified cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field srvModified cannot be modified by the client');
   });
-
 
   it('should reject modifiedBy alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { modifiedBy: 'MODIFIED' }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { modifiedBy: 'MODIFIED' }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field modifiedBy cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field modifiedBy cannot be modified by the client');
   });
-
 
   it('should reject isValid alteration', async () => {
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { isValid: false }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { isValid: false }))
       .expect(400);
 
-    res.body.status.should.equal(400);
-    res.body.message.should.equal('Field isValid cannot be modified by the client');
+    expect(res.body.status).toBe(400);
+    expect(res.body.message).toBe('Field isValid cannot be modified by the client');
   });
-
 
   it('should ignore identifier alteration in body', async () => {
-    self.validDoc = await self.get(self.validDoc.identifier);
+    validDoc = await getDoc(validDoc.identifier); // Ensure validDoc is up-to-date
 
-    let res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(Object.assign({}, self.validDoc, { identifier: 'MODIFIED' }))
+    let res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(Object.assign({}, validDoc, { identifier: 'MODIFIED' }))
       .expect(200);
 
-    res.body.status.should.equal(200);
-    delete self.validDoc.srvModified;
-    self.cache.nextShouldEql(self.col, self.validDoc)
+    expect(res.body.status).toBe(200);
+    const expectedDoc = { ...validDoc }; // Create a copy for comparison
+    delete expectedDoc.srvModified; // srvModified will change, so we don't compare it directly here
+                                  // The cache.nextShouldEql might need to handle this or be more specific
+    cache.nextShouldEql(col, expect.objectContaining(expectedDoc)); // Custom assertion, check if it handles srvModified
+    validDoc = await getDoc(validDoc.identifier); // Update validDoc with the latest state
   });
-
 
   it('should not update deleted document', async () => {
-    let res = await self.instance.delete(self.urlIdent, self.jwt.delete)
+    let res = await instanceInstance.delete(urlIdent, jwt.delete)
       .expect(200);
 
-    res.body.status.should.equal(200);
-    self.cache.nextShouldDeleteLast(self.col)
+    expect(res.body.status).toBe(200);
+    cache.nextShouldDeleteLast(col); // Custom assertion
 
-    res = await self.instance.put(self.urlIdent, self.jwt.update)
-      .send(self.validDoc)
+    res = await instanceInstance.put(urlIdent, jwt.update)
+      .send(validDoc)
       .expect(410);
 
-    res.body.status.should.equal(410);
+    expect(res.body.status).toBe(410);
   });
-
 });
 

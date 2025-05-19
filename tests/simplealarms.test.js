@@ -1,80 +1,68 @@
-var should = require('should');
-var levels = require('../lib/levels');
+import { describe, it, expect } from 'vitest';
+import levels from '../lib/levels';
 
-describe('simplealarms', function ( ) {
-  var env = require('../lib/server/env')();
-  var ctx = {
+describe('simplealarms', () => {
+  const env = require('../lib/server/env')();
+  const ctx = {
     settings: {}
     , language: require('../lib/language')()
     , levels: levels
   };
 
-  var simplealarms = require('../lib/plugins/simplealarms')(ctx);
+  const simplealarms = require('../lib/plugins/simplealarms')(ctx);
 
   ctx.ddata = require('../lib/data/ddata')();
   ctx.notifications = require('../lib/notifications')(env, ctx);
-  var bgnow = require('../lib/plugins/bgnow')(ctx);
+  const bgnow = require('../lib/plugins/bgnow')(ctx);
 
-  var now = Date.now();
-  var before = now - (5 * 60 * 1000);
+  const now = Date.now();
+  const before = now - (5 * 60 * 1000);
 
-
-  it('Not trigger an alarm when in range', function (done) {
+  it('Not trigger an alarm when in range', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: now, mgdl: 100}];
 
-    var sbx = require('../lib/sandbox')().serverInit(env, ctx);
+    const sbx = require('../lib/sandbox')().serverInit(env, ctx);
     simplealarms.checkNotifications(sbx);
-    should.not.exist(ctx.notifications.findHighestAlarm());
-
-    done();
+    expect(ctx.notifications.findHighestAlarm()).toBeUndefined();
   });
 
-  it('should trigger a warning when above target', function (done) {
+  it('should trigger a warning when above target', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: before, mgdl: 171}, {mills: now, mgdl: 181}];
 
-    var sbx = require('../lib/sandbox')().serverInit(env, ctx);
+    const sbx = require('../lib/sandbox')().serverInit(env, ctx);
     bgnow.setProperties(sbx);
     simplealarms.checkNotifications(sbx);
-    var highest = ctx.notifications.findHighestAlarm();
-    highest.level.should.equal(levels.WARN);
-    highest.message.should.equal('BG Now: 181 +10 mg/dl');
-    done();
+    const highest = ctx.notifications.findHighestAlarm();
+    expect(highest.level).toBe(levels.WARN);
+    expect(highest.message).toBe('BG Now: 181 +10 mg/dl');
   });
 
-  it('should trigger a urgent alarm when really high', function (done) {
+  it('should trigger a urgent alarm when really high', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: now, mgdl: 400}];
 
-    var sbx = require('../lib/sandbox')().serverInit(env, ctx);
+    const sbx = require('../lib/sandbox')().serverInit(env, ctx);
     simplealarms.checkNotifications(sbx);
-    ctx.notifications.findHighestAlarm().level.should.equal(levels.URGENT);
-
-    done();
+    expect(ctx.notifications.findHighestAlarm().level).toBe(levels.URGENT);
   });
 
-  it('should trigger a warning when below target', function (done) {
+  it('should trigger a warning when below target', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: now, mgdl: 70}];
 
-    var sbx = require('../lib/sandbox')().serverInit(env, ctx);
+    const sbx = require('../lib/sandbox')().serverInit(env, ctx);
     simplealarms.checkNotifications(sbx);
-    ctx.notifications.findHighestAlarm().level.should.equal(levels.WARN);
-
-    done();
+    expect(ctx.notifications.findHighestAlarm().level).toBe(levels.WARN);
   });
 
-  it('should trigger a urgent alarm when really low', function (done) {
+  it('should trigger a urgent alarm when really low', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: now, mgdl: 40}];
 
-    var sbx = require('../lib/sandbox')().serverInit(env, ctx);
+    const sbx = require('../lib/sandbox')().serverInit(env, ctx);
     simplealarms.checkNotifications(sbx);
-    ctx.notifications.findHighestAlarm().level.should.equal(levels.URGENT);
-
-    done();
+    expect(ctx.notifications.findHighestAlarm().level).toBe(levels.URGENT);
   });
-
-
 });

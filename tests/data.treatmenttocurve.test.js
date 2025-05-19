@@ -1,6 +1,6 @@
 'use strict';
 
-require('should');
+import { describe, it, expect } from 'vitest';
 
 var fitTreatmentsToBGCurve = require('../lib/data/treatmenttocurve');
 
@@ -27,11 +27,11 @@ describe('Data', function ( ) {
         language: require('../lib/language')()
       }
     );
-    ddata.treatments[0].mgdl.should.equal(100);
-    ddata.treatments[1].mmol.should.equal(5.5);
-    ddata.treatments[2].mgdl.should.equal(95);
-    ddata.treatments[3].mgdl.should.equal(100);
-    ddata.treatments[4].mgdl.should.equal(90);
+    expect(ddata.treatments[0].mgdl).toBe(100);
+    expect(ddata.treatments[1].mmol).toBe(5.5);
+    expect(ddata.treatments[2].mgdl).toBe(95);
+    expect(ddata.treatments[3].mgdl).toBe(100);
+    expect(ddata.treatments[4].mgdl).toBe(90);
   });
 
 });

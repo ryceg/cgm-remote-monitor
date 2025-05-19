@@ -1,15 +1,14 @@
 'use strict';
 
+import { describe, it, expect } from 'vitest'; // Added import
 const _ = require('lodash');
 const helper = require('./inithelper')();
-
-require('should');
 
 describe('COB', function ( ) {
   var ctx = helper.ctx;
 
   var cob = require('../lib/plugins/cob')(ctx);
-  
+
   var profileData = {
     startDate: '2015-06-21'
     , sens: 95
@@ -38,9 +37,9 @@ describe('COB', function ( ) {
     var before10 = cob.cobTotal(treatments, devicestatus, profile, new Date('2015-05-29T03:45:10.670Z').getTime());
     var after10 = cob.cobTotal(treatments, devicestatus, profile, new Date('2015-05-29T03:45:11.670Z').getTime());
 
-    after100.cob.should.equal(100);
-    Math.round(before10.cob).should.equal(59);
-    Math.round(after10.cob).should.equal(69); //WTF == 128
+    expect(after100.cob).toBe(100);
+    expect(Math.round(before10.cob)).toBe(59);
+    expect(Math.round(after10.cob)).toBe(69);  //WTF == 128
   });
 
   it('should calculate IOB, single treatment', function() {
@@ -66,11 +65,11 @@ describe('COB', function ( ) {
     var result4 = cob.cobTotal(treatments, devicestatus, profile, later3);
     var result5 = cob.cobTotal(treatments, devicestatus, profile, later4);
 
-    result1.cob.should.equal(8);
-    result2.cob.should.equal(6);
-    result3.cob.should.equal(0);
-    result4.cob.should.equal(0);
-    result5.cob.should.equal(0);
+    expect(result1.cob).toBe(8);
+    expect(result2.cob).toBe(6);
+    expect(result3.cob).toBe(0);
+    expect(result4.cob).toBe(0);
+    expect(result5.cob).toBe(0);
   });
 
   it('set a pill to the current COB', function (done) {
@@ -84,7 +83,7 @@ describe('COB', function ( ) {
 
     ctx.pluginBase = {
         updatePillText: function mockedUpdatePillText (plugin, options) {
-          options.value.should.equal('8g');
+          expect(options.value).toBe('8g');
           done();
         }
     };
@@ -109,11 +108,11 @@ describe('COB', function ( ) {
     var sbx = sandbox.clientInit(ctx, Date.now(), data);
     cob.setProperties(sbx);
 
-    cob.virtAsst.intentHandlers.length.should.equal(1);
+    expect(cob.virtAsst.intentHandlers.length).toBe(1);
 
     cob.virtAsst.intentHandlers[0].intentHandler(function next(title, response) {
-      title.should.equal('Current COB');
-      response.should.equal('You have 8 carbohydrates on board');
+      expect(title).toBe('Current COB');
+      expect(response).toBe('You have 8 carbohydrates on board');
       done();
     }, [], sbx);
 
@@ -138,10 +137,10 @@ describe('COB', function ( ) {
     var treatmentCOB = cob.fromTreatments(treatments, OPENAPS_DEVICESTATUS, profile, time).cob;
 
     it('should fall back to treatment data if no devicestatus data', function() {
-      cob.cobTotal(treatments, [], profile, time).should.containEql({
+      expect(cob.cobTotal(treatments, [], profile, time)).toEqual(expect.objectContaining({
         source: 'Care Portal',
         cob: treatmentCOB
-      });
+      }));
     });
 
     it('should fall back to treatments if openaps devicestatus is present but empty', function() {
@@ -150,24 +149,24 @@ describe('COB', function ( ) {
         mills: time - 1,
         openaps: {}
       }];
-      cob.cobTotal(treatments, devicestatus, profile, time).cob.should.equal(treatmentCOB);
+      expect(cob.cobTotal(treatments, devicestatus, profile, time).cob).toBe(treatmentCOB);
     });
 
     it('should fall back to treatments if openaps devicestatus is present but too stale', function() {
       var devicestatus = [_.merge(OPENAPS_DEVICESTATUS, { mills: time - cob.RECENCY_THRESHOLD - 1, openaps: {enacted: {COB: 5, timestamp: time - cob.RECENCY_THRESHOLD - 1} } })];
-      cob.cobTotal(treatments, devicestatus, profile, time).should.containEql({
+      expect(cob.cobTotal(treatments, devicestatus, profile, time)).toEqual(expect.objectContaining({
         source: 'Care Portal',
         cob: treatmentCOB
-      });
+      }));
     });
 
     it('should return COB data from OpenAPS', function () {
       var devicestatus = [_.merge(OPENAPS_DEVICESTATUS, { mills: time - 1, openaps: {enacted: {COB: 5, timestamp: time - 1} } })];
-      cob.cobTotal(treatments, devicestatus, profile, time).should.containEql({
+      expect(cob.cobTotal(treatments, devicestatus, profile, time)).toEqual(expect.objectContaining({
         cob: 5,
         source: 'OpenAPS',
         device: 'openaps://pi1'
-      });
+      }));
     });
 
     it('should return COB data from Loop', function () {
@@ -182,11 +181,11 @@ describe('COB', function ( ) {
       };
 
       var devicestatus = [_.merge(LOOP_DEVICESTATUS, { mills: time - 1, loop: {cob: {timestamp: time - 1} } })];
-      cob.cobTotal(treatments, devicestatus, profile, time).should.containEql({
+      expect(cob.cobTotal(treatments, devicestatus, profile, time)).toEqual(expect.objectContaining({
         cob: 5,
         source: 'Loop',
         device: 'loop://iPhone'
-      });
+      }));
     });
 
   });

@@ -1,42 +1,42 @@
-'use strict';
+import fs from 'fs';
+import request from 'supertest';
+import lang from '../lib/language';
+import bodyParser from 'body-parser';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 
-const fs = require('fs');
-const request = require('supertest');
-const language = require('../lib/language')(fs);
-
-const bodyParser = require('body-parser');
-
-require('should');
-
-describe('Alexa REST api', function ( ) {
-  this.timeout(10000);
+describe('Alexa REST api', () => {
   const apiRoot = require('../lib/api/root');
   const api = require('../lib/api/');
-  before(function (done) {
+  let app;
+  let wares;
+
+  beforeAll(async () => {
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../lib/server/env')();
     env.settings.enable = ['alexa'];
     env.settings.authDefaultRoles = 'readable';
     env.api_secret = 'this is my long pass phrase';
-    this.wares = require('../lib/middleware/')(env);
-    this.app = require('express')( );
-    this.app.enable('api');
-    var self = this;
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
-      self.app.use('/api', bodyParser({
-        limit: 1048576 * 50
-      }), apiRoot(env, ctx));
+    wares = require('../lib/middleware/')(env);
+    app = require('express')();
+    app.enable('api');
 
-      self.app.use('/api/v1', bodyParser({
-        limit: 1048576 * 50
-      }), api(env, ctx));
-      done( );
+    await new Promise(resolve => {
+      require('../lib/server/bootevent')(env, lang(fs)).boot(function booted(ctx) {
+        app.use('/api', bodyParser({
+          limit: 1048576 * 50
+        }), apiRoot(env, ctx));
+
+        app.use('/api/v1', bodyParser({
+          limit: 1048576 * 50
+        }), api(env, ctx));
+        resolve();
+      });
     });
   });
 
-  it('Launch Request', function (done) {
-    request(this.app)
+  it('Launch Request', async () => {
+    const response = await request(app)
       .post('/api/v1/alexa')
       .send({
         "request": {
@@ -44,21 +44,17 @@ describe('Alexa REST api', function ( ) {
           "locale": "en-US"
         }
       })
-      .expect(200)
-      .end(function (err, res)  {
-        if (err) return done(err);
+      .expect(200);
 
-        const launchText = 'What would you like to check on Nightscout?';
+    const launchText = 'What would you like to check on Nightscout?';
 
-        res.body.response.outputSpeech.text.should.equal(launchText);
-        res.body.response.reprompt.outputSpeech.text.should.equal(launchText);
-        res.body.response.shouldEndSession.should.equal(false);
-        done( );
-      });
+    expect(response.body.response.outputSpeech.text).toBe(launchText);
+    expect(response.body.response.reprompt.outputSpeech.text).toBe(launchText);
+    expect(response.body.response.shouldEndSession).toBe(false);
   });
 
-  it('Launch Request With Intent', function (done) {
-    request(this.app)
+  it('Launch Request With Intent', async () => {
+    const response = await request(app)
       .post('/api/v1/alexa')
       .send({
         "request": {
@@ -69,20 +65,16 @@ describe('Alexa REST api', function ( ) {
           }
         }
       })
-      .expect(200)
-      .end(function (err, res)  {
-        if (err) return done(err);
+      .expect(200);
 
-        const unknownIntentText = 'I\'m sorry, I don\'t know what you\'re asking for.';
+    const unknownIntentText = 'I\\\'m sorry, I don\\\'t know what you\\\'re asking for.';
 
-        res.body.response.outputSpeech.text.should.equal(unknownIntentText);
-        res.body.response.shouldEndSession.should.equal(true);
-        done( );
-      });
+    expect(response.body.response.outputSpeech.text).toBe(unknownIntentText);
+    expect(response.body.response.shouldEndSession).toBe(true);
   });
 
-  it('Session Ended', function (done) {
-    request(this.app)
+  it('Session Ended', async () => {
+    await request(app)
       .post('/api/v1/alexa')
       .send({
         "request": {
@@ -90,12 +82,7 @@ describe('Alexa REST api', function ( ) {
           "locale": "en-US"
         }
       })
-      .expect(200)
-      .end(function (err)  {
-        if (err) return done(err);
-
-        done( );
-      });
+      .expect(200);
   });
 });
 

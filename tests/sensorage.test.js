@@ -1,10 +1,8 @@
-'use strict';
-
-var should = require('should');
-var times = require('../lib/times');
+import { describe, it, expect } from 'vitest';
+import times from '../lib/times';
 const helper = require('./inithelper')();
 
-describe('sage', function ( ) {
+describe('sage', () => {
   var env = require('../lib/server/env')();
   var ctx = helper.getctx();
   ctx.ddata = require('../lib/data/ddata')();
@@ -17,127 +15,126 @@ describe('sage', function ( ) {
     return sbx;
   }
 
-  it('set a pill to the current age since start with change', function (done) {
-
-    var data = {
-      sensorTreatments: [
-        {eventType: 'Sensor Change', notes: 'Foo', mills: Date.now() - times.days(2).msecs}
-        , {eventType: 'Sensor Start', notes: 'Bar', mills: Date.now() - times.days(1).msecs}
+  it('set a pill to the current age since start with change', async () => {
+    await new Promise(done => {
+      var data = {
+        sensorTreatments: [
+          {eventType: 'Sensor Change', notes: 'Foo', mills: Date.now() - times.days(2).msecs},
+          {eventType: 'Sensor Start', notes: 'Bar', mills: Date.now() - times.days(1).msecs}
         ]
-    };
+      };
 
-    var ctx = {
-      settings: {}
-      , pluginBase: {
-        updatePillText: function mockedUpdatePillText(plugin, options) {
-        
-          console.log(JSON.stringify(options));
-          options.value.should.equal('1d0h');
-          options.info[0].label.should.equal('Sensor Insert');
-          options.info[1].should.match({ label: 'Duration', value: '2 days 0 hours' });
-          options.info[2].should.match({ label: 'Notes', value: 'Foo' });
-          options.info[3].label.should.equal('Sensor Start');
-          options.info[4].should.match({ label: 'Duration', value: '1 days 0 hours' });
-          options.info[5].should.match({ label: 'Notes', value: 'Bar' });
-          done();
+      var context = { // Renamed ctx to context to avoid conflict with outer ctx
+        settings: {},
+        pluginBase: {
+          updatePillText: function mockedUpdatePillText(plugin, options) {
+            console.log(JSON.stringify(options));
+            expect(options.value).toBe('1d0h');
+            expect(options.info[0].label).toBe('Sensor Insert');
+            expect(options.info[1]).toMatchObject({ label: 'Duration', value: '2 days 0 hours' });
+            expect(options.info[2]).toMatchObject({ label: 'Notes', value: 'Foo' });
+            expect(options.info[3].label).toBe('Sensor Start');
+            expect(options.info[4]).toMatchObject({ label: 'Duration', value: '1 days 0 hours' });
+            expect(options.info[5]).toMatchObject({ label: 'Notes', value: 'Bar' });
+            done();
+          }
         }
-      }
-    };
-    ctx.language = require('../lib/language')();
+      };
+      context.language = require('../lib/language')(); // Use context here
 
-    var sbx = sandbox.clientInit(ctx, Date.now(), data);
-    sage.setProperties(sbx);
-    sage.updateVisualisation(sbx);
-
+      var sbx = sandbox.clientInit(context, Date.now(), data); // Use context here
+      sage.setProperties(sbx);
+      sage.updateVisualisation(sbx);
+    });
   });
 
-  it('set a pill to the current age since start without change', function (done) {
+  it('set a pill to the current age since start without change', async () => {
+    await new Promise(done => {
+      var data = {
+        sensorTreatments: [
+          {eventType: 'Sensor Start', notes: 'Bar', mills: Date.now() - times.days(3).msecs}
+        ]
+      };
 
-    var data = {
-      sensorTreatments: [
-        {eventType: 'Sensor Start', notes: 'Bar', mills: Date.now() - times.days(3).msecs}
-      ]
-    };
-
-    var ctx = {
-      settings: {}
-      , pluginBase: {
-        updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.value.should.equal('3d0h');
-          options.info[0].label.should.equal('Sensor Start');
-          options.info[1].should.match({ label: 'Duration', value: '3 days 0 hours' });
-          options.info[2].should.match({ label: 'Notes', value: 'Bar' });
-          done();
+      var context = { // Renamed ctx to context
+        settings: {},
+        pluginBase: {
+          updatePillText: function mockedUpdatePillText(plugin, options) {
+            expect(options.value).toBe('3d0h');
+            expect(options.info[0].label).toBe('Sensor Start');
+            expect(options.info[1]).toMatchObject({ label: 'Duration', value: '3 days 0 hours' });
+            expect(options.info[2]).toMatchObject({ label: 'Notes', value: 'Bar' });
+            done();
+          }
         }
-      }
-    };
-    ctx.language = require('../lib/language')();
+      };
+      context.language = require('../lib/language')(); // Use context here
 
-    var sbx = sandbox.clientInit(ctx, Date.now(), data);
-    sage.setProperties(sbx);
-    sage.updateVisualisation(sbx);
-
+      var sbx = sandbox.clientInit(context, Date.now(), data); // Use context here
+      sage.setProperties(sbx);
+      sage.updateVisualisation(sbx);
+    });
   });
 
-  it('set a pill to the current age since change without start', function (done) {
+  it('set a pill to the current age since change without start', async () => {
+    await new Promise(done => {
+      var data = {
+        sensorTreatments: [
+          {eventType: 'Sensor Change', notes: 'Foo', mills: Date.now() - times.days(3).msecs}
+        ]
+      };
 
-    var data = {
-      sensorTreatments: [
-        {eventType: 'Sensor Change', notes: 'Foo', mills: Date.now() - times.days(3).msecs}
-      ]
-    };
-
-    var ctx = {
-      settings: {}
-      , pluginBase: {
-        updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.value.should.equal('3d0h');
-          options.info[0].label.should.equal('Sensor Insert');
-          options.info[1].should.match({ label: 'Duration', value: '3 days 0 hours' });
-          options.info[2].should.match({ label: 'Notes', value: 'Foo' });
-          done();
+      var context = { // Renamed ctx to context
+        settings: {},
+        pluginBase: {
+          updatePillText: function mockedUpdatePillText(plugin, options) {
+            expect(options.value).toBe('3d0h');
+            expect(options.info[0].label).toBe('Sensor Insert');
+            expect(options.info[1]).toMatchObject({ label: 'Duration', value: '3 days 0 hours' });
+            expect(options.info[2]).toMatchObject({ label: 'Notes', value: 'Foo' });
+            done();
+          }
         }
-      }
-    };
-    ctx.language = require('../lib/language')();
+      };
+      context.language = require('../lib/language')(); // Use context here
 
-    var sbx = sandbox.clientInit(ctx, Date.now(), data);
-    sage.setProperties(sbx);
-    sage.updateVisualisation(sbx);
-
+      var sbx = sandbox.clientInit(context, Date.now(), data); // Use context here
+      sage.setProperties(sbx);
+      sage.updateVisualisation(sbx);
+    });
   });
 
-  it('set a pill to the current age since change after start', function (done) {
+  it('set a pill to the current age since change after start', async () => {
+    await new Promise(done => {
+      var data = {
+        sensorTreatments: [
+          {eventType: 'Sensor Start', notes: 'Bar', mills: Date.now() - times.days(10).msecs},
+          {eventType: 'Sensor Change', notes: 'Foo', mills: Date.now() - times.days(3).msecs}
+        ]
+      };
 
-    var data = {
-      sensorTreatments: [
-        {eventType: 'Sensor Start', notes: 'Bar', mills: Date.now() - times.days(10).msecs}
-        , {eventType: 'Sensor Change', notes: 'Foo', mills: Date.now() - times.days(3).msecs}
-      ]
-    };
-
-    var ctx = {
-      settings: {}
-      , pluginBase: {
-        updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.value.should.equal('3d0h');
-          options.info.length.should.equal(3);
-          options.info[0].label.should.equal('Sensor Insert');
-          options.info[1].should.match({ label: 'Duration', value: '3 days 0 hours' });
-          options.info[2].should.match({ label: 'Notes', value: 'Foo' });
-          done();
+      var context = { // Renamed ctx to context
+        settings: {},
+        pluginBase: {
+          updatePillText: function mockedUpdatePillText(plugin, options) {
+            expect(options.value).toBe('3d0h');
+            expect(options.info.length).toBe(3);
+            expect(options.info[0].label).toBe('Sensor Insert');
+            expect(options.info[1]).toMatchObject({ label: 'Duration', value: '3 days 0 hours' });
+            expect(options.info[2]).toMatchObject({ label: 'Notes', value: 'Foo' });
+            done();
+          }
         }
-      }
-    };
-    ctx.language = require('../lib/language')();
+      };
+      context.language = require('../lib/language')(); // Use context here
 
-    var sbx = sandbox.clientInit(ctx, Date.now(), data);
-    sage.setProperties(sbx);
-    sage.updateVisualisation(sbx);
-
+      var sbx = sandbox.clientInit(context, Date.now(), data); // Use context here
+      sage.setProperties(sbx);
+      sage.updateVisualisation(sbx);
+    });
   });
 
-  it('trigger an alarm when sensor is 6 days and 22 hours old', function (done) {
+  it('trigger an alarm when sensor is 6 days and 22 hours old', () => {
     ctx.notifications.initRequests();
 
     var before = Date.now() - times.days(6).msecs - times.hours(22).msecs;
@@ -150,12 +147,11 @@ describe('sage', function ( ) {
     sage.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm('SAGE');
-    highest.level.should.equal(ctx.levels.URGENT);
-    highest.title.should.equal('Sensor age 6 days 22 hours');
-    done();
+    expect(highest.level).toBe(ctx.levels.URGENT);
+    expect(highest.title).toBe('Sensor age 6 days 22 hours');
   });
 
-  it('not trigger an alarm when sensor is 6 days and 23 hours old', function (done) {
+  it('not trigger an alarm when sensor is 6 days and 23 hours old', () => {
     ctx.notifications.initRequests();
 
     var before = Date.now() - times.days(6).msecs - times.hours(23).msecs;
@@ -167,8 +163,6 @@ describe('sage', function ( ) {
     sage.setProperties(sbx);
     sage.checkNotifications(sbx);
 
-    should.not.exist(ctx.notifications.findHighestAlarm('SAGE'));
-    done();
+    expect(ctx.notifications.findHighestAlarm('SAGE')).toBeUndefined();
   });
-
 });

@@ -1,247 +1,239 @@
-'use strict';
+import { describe, test, beforeEach, afterAll, expect } from 'vitest';
+import _ from 'lodash';
+import request from 'supertest';
+import getLanguageInstance from '../lib/language';
+import _moment from 'moment';
+import express from 'express';
+import getEnv from '../lib/server/env';
+import initBootEvent from '../lib/server/bootevent';
+import getDData from '../lib/data/ddata';
+import apiHandler from '../lib/api/';
+import initMiddleware from '../lib/middleware/';
 
-var _ = require('lodash');
-var request = require('supertest');
-var should = require('should');
-var language = require('../lib/language')();
-var _moment = require('moment');
+const languageInstance = getLanguageInstance();
 
-describe('Treatment API', function ( ) {
-  this.timeout(10000);
-  var self = this;
+describe('Treatment API', () => {
+  let self = {}; // To store context like app, env, ctx
 
-  var api_secret_hash = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
+  const api_secret_hash = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
 
-  var api = require('../lib/api/');
-  beforeEach(function (done) {
+  beforeEach(async () => {
     process.env.API_SECRET = 'this is my long pass phrase';
-    self.env = require('../lib/server/env')();
+    self.env = getEnv();
     self.env.settings.authDefaultRoles = 'readable';
     self.env.settings.enable = ['careportal', 'api'];
-    this.wares = require('../lib/middleware/')(self.env);
-    self.app = require('express')();
+    self.wares = initMiddleware(self.env);
+    self.app = express();
     self.app.enable('api');
-    require('../lib/server/bootevent')(self.env, language).boot(function booted(ctx) {
-      self.ctx = ctx;
-      self.ctx.ddata = require('../lib/data/ddata')();
-      self.app.use('/api', api(self.env, ctx));
-      done();
+
+    await new Promise((resolve) => {
+      initBootEvent(self.env, languageInstance).boot(function booted(ctx) {
+        // Assuming 'boot' calls back with ctx and doesn't have an error param,
+        // or errors would throw/be handled by initBootEvent
+        self.ctx = ctx;
+        self.ctx.ddata = getDData();
+        self.app.use('/api', apiHandler(self.env, ctx));
+        resolve();
+      });
     });
   });
 
-  after(function () {
-    // delete process.env.API_SECRET;
+  afterAll(() => {
+    // delete process.env.API_SECRET; // Consider if this is needed for test isolation
   });
 
-  it('post single treatments', function (done) {
-
-    self.ctx.treatments().remove({ }, function ( ) {
-      var now = (new Date()).toISOString();
-      request(self.app)
-        .post('/api/treatments/')
-        .set('api-secret', api_secret_hash || '')
-        .send({eventType: 'Meal Bolus', created_at: now, carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl', notes: '<IMG SRC="javascript:alert(\'XSS\');">'})
-        .expect(200)
-        .end(function (err) {
-          if (err) {
-            done(err);
-          } else {
-            self.ctx.treatments.list({}, function (err, list) {
-              var sorted = _.sortBy(list, function (treatment) {
-                return treatment.created_at;
-              });
-              sorted.length.should.equal(2);
-              sorted[0].glucose.should.equal(100);
-              sorted[0].notes.should.equal('<img>');
-              should.not.exist(sorted[0].eventTime);
-              sorted[0].insulin.should.equal(2);
-              sorted[1].carbs.should.equal(30);
-              done();
-            });
-          }
-        });
-
+  test('post single treatments', async () => {
+    await new Promise((resolve, reject) => {
+      self.ctx.treatments().remove({}, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
     });
+
+    const now = (new Date()).toISOString();
+    await request(self.app)
+      .post('/api/treatments/')
+      .set('api-secret', api_secret_hash || '')
+      .send({eventType: 'Meal Bolus', created_at: now, carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl', notes: '<IMG SRC="javascript:alert(\'XSS\');">' })
+      .expect(200);
+
+    const list = await new Promise((resolve, reject) => {
+      self.ctx.treatments.list({}, (err, items) => {
+        if (err) return reject(err);
+        resolve(items);
+      });
+    });
+
+    const sorted = _.sortBy(list, treatment => treatment.created_at);
+    expect(sorted.length).toBe(2);
+    expect(sorted[0].glucose).toBe(100);
+    expect(sorted[0].notes).toBe('<img>');
+    expect(sorted[0].eventTime).toBeUndefined();
+    expect(sorted[0].insulin).toBe(2);
+    expect(sorted[1].carbs).toBe(30);
   });
 
   /*
-  it('saving entry without created_at should fail', function (done) {
-
-    self.ctx.treatments().remove({ }, function ( ) {
-      request(self.app)
-        .post('/api/treatments/')
-        .set('api-secret', self.env.api_secret || '')
-        .send({eventType: 'Meal Bolus', carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'})
-        .expect(422)
-        .end(function (err) {
-          if (err) {
-            done(err);
-          } else {
-              done();
-          }
-        });
+  test('saving entry without created_at should fail', async () => {
+    await new Promise((resolve, reject) => {
+      self.ctx.treatments().remove({ }, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
     });
-  });
-*/
 
-  it('post single treatments in zoned time format', function (done) {
-   
-    var current_time = Date.now();
+    // supertest's .expect(statusCode) will throw if the status code doesn't match.
+    // So, if 422 is received, the await will complete successfully.
+    // If a different code (e.g., 200) is received, it will throw, failing the test.
+    await request(self.app)
+      .post('/api/treatments/')
+      .set('api-secret', self.env.api_secret || '') // Note: self.env.api_secret might differ from api_secret_hash
+      .send({eventType: 'Meal Bolus', carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'})
+      .expect(422);
+  });
+  */
+
+  test('post single treatments in zoned time format', async () => {
+    const current_time = Date.now();
     console.log('Testing date with local format: ', _moment(current_time).format("YYYY-MM-DDTHH:mm:ss.SSSZZ"));
-      
-    self.ctx.treatments().remove({ }, function ( ) {
-      request(self.app)
-        .post('/api/treatments/')
-        .set('api-secret', api_secret_hash || '')
-        .send({eventType: 'Meal Bolus', created_at: _moment(current_time).format("YYYY-MM-DDTHH:mm:ss.SSSZZ"), carbs: '30', insulin: '2.00', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'})
-        .expect(200)
-        .end(function (err) {
-          if (err) {
-            done(err);
-          } else {
-            self.ctx.treatments.list({}, function (err, list) {
-              var sorted = _.sortBy(list, function (treatment) {
-                return treatment.created_at;
-              });
-              console.log(sorted);
-              sorted.length.should.equal(1);
-              sorted[0].glucose.should.equal(100);
-              should.not.exist(sorted[0].eventTime);
-              sorted[0].insulin.should.equal(2);
-              sorted[0].carbs.should.equal(30);
-              var zonedTime = _moment(current_time).utc().format("YYYY-MM-DDTHH:mm:ss.SSS") + "Z";
-              sorted[0].created_at.should.equal(zonedTime);
-              sorted[0].utcOffset.should.equal(-1* new Date().getTimezoneOffset());
-              done();
-            });
-          }
-        });
 
+    await new Promise((resolve, reject) => {
+      self.ctx.treatments().remove({ }, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
     });
+
+    await request(self.app)
+      .post('/api/treatments/')
+      .set('api-secret', api_secret_hash || '')
+      .send({eventType: 'Meal Bolus', created_at: _moment(current_time).format("YYYY-MM-DDTHH:mm:ss.SSSZZ"), carbs: '30', insulin: '2.00', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'})
+      .expect(200);
+
+    const list = await new Promise((resolve, reject) => {
+      self.ctx.treatments.list({}, (err, items) => {
+        if (err) return reject(err);
+        resolve(items);
+      });
+    });
+
+    const sorted = _.sortBy(list, treatment => treatment.created_at);
+    console.log(sorted);
+    expect(sorted.length).toBe(1);
+    expect(sorted[0].glucose).toBe(100);
+    expect(sorted[0].eventTime).toBeUndefined();
+    expect(sorted[0].insulin).toBe(2);
+    expect(sorted[0].carbs).toBe(30);
+    const zonedTime = _moment(current_time).utc().format("YYYY-MM-DDTHH:mm:ss.SSS") + "Z";
+    expect(sorted[0].created_at).toBe(zonedTime);
+    expect(sorted[0].utcOffset).toBe(-1 * new Date().getTimezoneOffset());
   });
 
 
-  it('post a treatment array', function (done) {
-    self.ctx.treatments().remove({ }, function ( ) {
-      var now = (new Date()).toISOString();
-      request(self.app)
-        .post('/api/treatments/')
-        .set('api-secret', api_secret_hash || '')
-        .send([
-          {eventType: 'BG Check', created_at: now, glucose: 100, preBolus: '0', glucoseType: 'Finger', units: 'mg/dl', notes: ''}
-          , {eventType: 'Meal Bolus', created_at: now, carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'}
-         ])
-        .expect(200)
-        .end(function (err) {
-          if (err) {
-            done(err);
-          } else {
-            self.ctx.treatments.list({}, function (err, list) {
-              list.length.should.equal(3);
-              should.not.exist(list[0].eventTime);
-              should.not.exist(list[1].eventTime);
-
-              done();
-            });
-          }
-        });
+  test('post a treatment array', async () => {
+    await new Promise((resolve, reject) => {
+      self.ctx.treatments().remove({ }, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
     });
+
+    const now = (new Date()).toISOString();
+    await request(self.app)
+      .post('/api/treatments/')
+      .set('api-secret', api_secret_hash || '')
+      .send([
+        {eventType: 'BG Check', created_at: now, glucose: 100, preBolus: '0', glucoseType: 'Finger', units: 'mg/dl', notes: ''},
+        {eventType: 'Meal Bolus', created_at: now, carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'}
+      ])
+      .expect(200);
+
+    const list = await new Promise((resolve, reject) => {
+      self.ctx.treatments.list({}, (err, items) => {
+        if (err) return reject(err);
+        resolve(items);
+      });
+    });
+
+    expect(list.length).toBe(3);
+    expect(list[0].eventTime).toBeUndefined();
+    expect(list[1].eventTime).toBeUndefined();
   });
 
-  it('post a treatment array and dedupe', function (done) {
-    self.ctx.treatments().remove({ }, function ( ) {
-      var now = (new Date()).toISOString();
-      request(self.app)
-        .post('/api/treatments/')
-        .set('api-secret', api_secret_hash || '')
-        .send([
-          {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now}
-          , {eventType: 'Meal Bolus', created_at: now, carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'}
-        ])
-        .expect(200)
-        .end(function (err) {
-          if (err) {
-            done(err);
-          } else {
-            self.ctx.treatments.list({}, function (err, list) {
-              var sorted = _.sortBy(list, function (treatment) {
-                return treatment.created_at;
-              });
-
-              if (sorted.length !== 3) {
-                console.info('unexpected result length, sorted treatments:', sorted);
-              }
-              sorted.length.should.equal(3);
-              sorted[0].glucose.should.equal(100);
-
-              done();
-            });
-          }
-        });
+  test('post a treatment array and dedupe', async () => {
+    await new Promise((resolve, reject) => {
+      self.ctx.treatments().remove({ }, (err) => {
+        if (err) return reject(err);
+        resolve();
+      });
     });
+
+    const now = (new Date()).toISOString();
+    await request(self.app)
+      .post('/api/treatments/')
+      .set('api-secret', api_secret_hash || '')
+      .send([
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'BG Check', glucose: 100, units: 'mg/dl', created_at: now},
+        {eventType: 'Meal Bolus', created_at: now, carbs: '30', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'}
+      ])
+      .expect(200);
+
+    const list = await new Promise((resolve, reject) => {
+      self.ctx.treatments.list({}, (err, items) => {
+        if (err) return reject(err);
+        resolve(items);
+      });
+    });
+
+    const sorted = _.sortBy(list, treatment => treatment.created_at);
+
+    if (sorted.length !== 3) {
+      console.info('unexpected result length, sorted treatments:', sorted);
+    }
+    expect(sorted.length).toBe(3);
+    expect(sorted[0].glucose).toBe(100);
   });
 
-  it('post a treatment, query, delete, verify gone', function (done) {
-    // insert a treatment - needs to be unique from example data
+  test('post a treatment, query, delete, verify gone', async () => {
     console.log('Inserting treatment entry');
-    var now = (new Date()).toISOString();
-    request(self.app)
+    const now = (new Date()).toISOString();
+
+    await request(self.app)
       .post('/api/treatments/')
       .set('api-secret', api_secret_hash || '')
       .send({eventType: 'Meal Bolus', created_at: now, carbs: '99', insulin: '2.00', preBolus: '15', glucose: 100, glucoseType: 'Finger', units: 'mg/dl'})
-      .expect(200)
-      .end(function (err) {
-        if (err) {
-          done(err);
-        } else {
-          // make sure treatment was inserted successfully
-          console.log('Ensuring treatment entry was inserted successfully');
-          request(self.app)
-            .get('/api/treatments/')
-            .query('find[carbs]=99')
-            .set('api-secret', api_secret_hash || '')
-            .expect(200)
-            .expect(function (response) {
-              response.body[0].carbs.should.equal(99);
-            })
-            .end(function (err) {
-              if (err) {
-                done(err);
-              } else {
-                // delete the treatment
-                console.log('Deleting test treatment entry');
-                request(self.app)
-                  .delete('/api/treatments/')
-                  .query('find[carbs]=99')
-                  .set('api-secret', api_secret_hash || '')
-                  .expect(200)
-                  .end(function (err) {
-                    if (err) {
-                      done(err);
-                    } else {
-                      // make sure it was deleted
-                      console.log('Testing if entry was deleted');
-                      request(self.app)
-                        .get('/api/treatments/')
-                        .query('find[carbs]=99')
-                        .set('api-secret', api_secret_hash || '')
-                        .expect(200)
-                        .expect(function (response) {
-                          response.body.length.should.equal(0);
-                        })
-                        .end(done);
-                    }
-                  });
-              }
-            });
-        }
-      });
+      .expect(200);
+
+    console.log('Ensuring treatment entry was inserted successfully');
+    const getResponse1 = await request(self.app)
+      .get('/api/treatments/')
+      .query('find[carbs]=99') // supertest handles query object formatting
+      .set('api-secret', api_secret_hash || '')
+      .expect(200);
+
+    expect(getResponse1.body[0].carbs).toBe(99);
+
+    console.log('Deleting test treatment entry');
+    await request(self.app)
+      .delete('/api/treatments/')
+      .query('find[carbs]=99')
+      .set('api-secret', api_secret_hash || '')
+      .expect(200);
+
+    console.log('Testing if entry was deleted');
+    const getResponse2 = await request(self.app)
+      .get('/api/treatments/')
+      .query('find[carbs]=99')
+      .set('api-secret', api_secret_hash || '')
+      .expect(200);
+
+    expect(getResponse2.body.length).toBe(0);
   });
 });

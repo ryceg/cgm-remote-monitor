@@ -1,9 +1,10 @@
 'use strict';
 
+import { describe, it, expect } from 'vitest'; // Added import
 const fs = require('fs');
 const language = require('../lib/language')(fs);
 const levels = require('../lib/levels');
-require('should');
+// require('should'); // Removed should
 
 var topctx = {
   levels: levels
@@ -28,10 +29,10 @@ describe('Database Size', function() {
     var sbx = sandbox.clientInit(ctx, Date.now(), dataInRange);
 
     sbx.offerProperty = function mockedOfferProperty (name, setter) {
-      name.should.equal('dbsize');
+      expect(name).toBe('dbsize');
       var result = setter();
-      result.display.should.equal('37%');
-      result.status.should.equal('current');
+      expect(result.display).toBe('37%');
+      expect(result.status).toBe('current');
       done();
     };
 
@@ -53,10 +54,10 @@ describe('Database Size', function() {
     var sbx = sandbox.clientInit(ctx, Date.now(), dataWarn);
 
     sbx.offerProperty = function mockedOfferProperty (name, setter) {
-      name.should.equal('dbsize');
+      expect(name).toBe('dbsize');
       var result = setter();
-      result.display.should.equal('70%');
-      result.status.should.equal('warn');
+      expect(result.display).toBe('70%');
+      expect(result.status).toBe('warn');
       done();
     };
 
@@ -79,10 +80,10 @@ describe('Database Size', function() {
     var sbx = sandbox.clientInit(ctx, Date.now(), dataUrgent);
 
     sbx.offerProperty = function mockedOfferProperty (name, setter) {
-      name.should.equal('dbsize');
+      expect(name).toBe('dbsize');
       var result = setter();
-      result.display.should.equal('90%');
-      result.status.should.equal('urgent');
+      expect(result.display).toBe('90%');
+      expect(result.status).toBe('urgent');
       done();
     };
 
@@ -112,9 +113,9 @@ describe('Database Size', function() {
     dbsize.checkNotifications(sbx);
 
     var notif = ctx.notifications.findHighestAlarm('Database Size');
-    notif.level.should.equal(ctx.levels.WARN);
-    notif.title.should.equal('Warning Database Size near its limits!');
-    notif.message.should.equal('Database size is 350 MiB out of 496 MiB. Please backup and clean up database!');
+    expect(notif.level).toBe(ctx.levels.WARN);
+    expect(notif.title).toBe('Warning Database Size near its limits!');
+    expect(notif.message).toBe('Database size is 350 MiB out of 496 MiB. Please backup and clean up database!');
     done();
   });
 
@@ -139,9 +140,9 @@ describe('Database Size', function() {
     dbsize.checkNotifications(sbx);
 
     var notif = ctx.notifications.findHighestAlarm('Database Size');
-    notif.level.should.equal(ctx.levels.URGENT);
-    notif.title.should.equal('Urgent Database Size near its limits!');
-    notif.message.should.equal('Database size is 450 MiB out of 496 MiB. Please backup and clean up database!');
+    expect(notif.level).toBe(ctx.levels.URGENT);
+    expect(notif.title).toBe('Urgent Database Size near its limits!');
+    expect(notif.message).toBe('Database size is 450 MiB out of 496 MiB. Please backup and clean up database!');
     done();
   });
 
@@ -152,9 +153,9 @@ describe('Database Size', function() {
       settings: {}
       , pluginBase: {
         updatePillText: function mockedUpdatePillText (plugin, options) {
-          options.value.should.equal('90%');
-          options.labelClass.should.equal('plugicon-database');
-          options.pillClass.should.equal('urgent');
+          expect(options.value).toBe('90%');
+          expect(options.labelClass).toBe('plugicon-database');
+          expect(options.pillClass).toBe('urgent');
           done();
         }
       }
@@ -184,9 +185,9 @@ describe('Database Size', function() {
       }
       , pluginBase: {
         updatePillText: function mockedUpdatePillText (plugin, options) {
-          options.value.should.equal('450MiB');
-          options.labelClass.should.equal('plugicon-database');
-          options.pillClass.should.equal('urgent');
+          expect(options.value).toBe('450MiB');
+          expect(options.labelClass).toBe('plugicon-database');
+          expect(options.pillClass).toBe('urgent');
           done();
         }
       }
@@ -217,8 +218,8 @@ describe('Database Size', function() {
       }
       , pluginBase: {
         updatePillText: function mockedUpdatePillText (plugin, options) {
-          options.value.should.equal('37%');
-          options.pillClass.should.equal('warn');
+          expect(options.value).toBe('37%');
+          expect(options.pillClass).toBe('warn');
           done();
         }
       }
@@ -249,8 +250,8 @@ describe('Database Size', function() {
       }
       , pluginBase: {
         updatePillText: function mockedUpdatePillText (plugin, options) {
-          options.value.should.equal('37%');
-          options.pillClass.should.equal('urgent');
+          expect(options.value).toBe('37%');
+          expect(options.pillClass).toBe('urgent');
           done();
         }
       }
@@ -272,7 +273,7 @@ describe('Database Size', function() {
       settings: {}
       , pluginBase: {
         updatePillText: function mockedUpdatePillText (plugin, options) {
-          options.hide.should.equal(true);
+          expect(options.hide).toBe(true);
           done();
         }
       }
@@ -302,11 +303,11 @@ describe('Database Size', function() {
     var dbsize = require('../lib/plugins/dbsize')(ctx);
     dbsize.setProperties(sbx);
 
-    dbsize.virtAsst.intentHandlers.length.should.equal(1);
+    expect(dbsize.virtAsst.intentHandlers.length).toBe(1);
 
     dbsize.virtAsst.intentHandlers[0].intentHandler(function next (title, response) {
-      title.should.equal('Database file size');
-      response.should.equal('450 MiB. That is 90% of available database space.');
+      expect(title).toBe('Database file size');
+      expect(response).toBe('450 MiB. That is 90% of available database space.');
 
       done();
 

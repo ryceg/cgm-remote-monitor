@@ -1,8 +1,6 @@
-'use strict';
+import { describe, it, expect } from 'vitest';
 
-var should = require('should');
-
-describe('bridge', function ( ) {
+describe('bridge', () => {
   var bridge = require('../lib/plugins/bridge');
 
   var env = {
@@ -15,23 +13,23 @@ describe('bridge', function ( ) {
     }
   };
 
-  it('be creatable', function () {
+  it('be creatable', () => {
     var configed = bridge(env);
-    should.exist(configed);
-    should.exist(configed.startEngine);
-    should.exist(configed.startEngine.call);
+    expect(configed).to.exist;
+    expect(configed.startEngine).to.exist;
+    expect(configed.startEngine.call).to.exist;
   });
 
-  it('set options from env', function () {
+  it('set options from env', () => {
     var opts = bridge.options(env);
-    should.exist(opts);
+    expect(opts).to.exist;
 
-    opts.login.accountName.should.equal('nightscout');
-    opts.login.password.should.equal('wearenotwaiting');
-    opts.interval.should.equal(60000);
+    expect(opts.login.accountName).to.equal('nightscout');
+    expect(opts.login.password).to.equal('wearenotwaiting');
+    expect(opts.interval).to.equal(60000);
   });
 
-  it('store entries from share', function (done) {
+  it('store entries from share', (done) => {
     var mockEntries = {
       create: function mockCreate (err, callback) {
         callback(null);
@@ -41,7 +39,7 @@ describe('bridge', function ( ) {
     bridge.bridged(mockEntries)(null);
   });
 
-  it('set too low bridge interval option from env', function () {
+  it('set too low bridge interval option from env', () => {
     var tooLowInterval = {
       extendedSettings: {
         bridge: { interval: 900 }
@@ -49,12 +47,12 @@ describe('bridge', function ( ) {
     };
 
     var opts = bridge.options(tooLowInterval);
-    should.exist(opts);
+    expect(opts).to.exist;
 
-    opts.interval.should.equal(156000);
+    expect(opts.interval).to.equal(156000);
   });
 
-  it('set too high bridge interval option from env', function () {
+  it('set too high bridge interval option from env', () => {
     var tooHighInterval = {
       extendedSettings: {
         bridge: { interval: 500000 }
@@ -62,12 +60,12 @@ describe('bridge', function ( ) {
     };
 
     var opts = bridge.options(tooHighInterval);
-    should.exist(opts);
+    expect(opts).to.exist;
 
-    opts.interval.should.equal(156000);
+    expect(opts.interval).to.equal(156000);
   });
 
-  it('set no bridge interval option from env', function () {
+  it('set no bridge interval option from env', () => {
     var noInterval = {
       extendedSettings: {
         bridge: { }
@@ -75,9 +73,9 @@ describe('bridge', function ( ) {
     };
 
     var opts = bridge.options(noInterval);
-    should.exist(opts);
+    expect(opts).to.exist;
 
-    opts.interval.should.equal(156000);
+    expect(opts.interval).to.equal(156000);
   });
 
 });

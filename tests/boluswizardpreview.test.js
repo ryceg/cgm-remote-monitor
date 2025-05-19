@@ -1,8 +1,8 @@
-var should = require('should');
+import { describe, it, expect } from 'vitest';
 var Stream = require('stream');
 const helper = require('./inithelper')();
 
-describe('boluswizardpreview', function ( ) {
+describe('boluswizardpreview', () => {
   var env = require('../lib/server/env')();
   env.testMode = true;
 
@@ -39,7 +39,7 @@ describe('boluswizardpreview', function ( ) {
     , target_low: 100
   };
 
-  it('should calculate IOB results correctly with 0 IOB', function (done) {
+  it('should calculate IOB results correctly with 0 IOB', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: before, mgdl: 100}, {mills: now, mgdl: 100}];
     ctx.ddata.treatments = [];
@@ -47,22 +47,21 @@ describe('boluswizardpreview', function ( ) {
 
     var sbx = prepareSandbox();
     var results = boluswizardpreview.calc(sbx);
-    
-    results.effect.should.equal(0);
-    results.effectDisplay.should.equal(0);
-    results.outcome.should.equal(100);
-    results.outcomeDisplay.should.equal(100);
-    results.bolusEstimate.should.equal(0);
-    results.displayLine.should.equal('BWP: 0U');
-    
-    done();
+
+    expect(results.effect).to.equal(0);
+    expect(results.effectDisplay).to.equal(0);
+    expect(results.outcome).to.equal(100);
+    expect(results.outcomeDisplay).to.equal(100);
+    expect(results.bolusEstimate).to.equal(0);
+    expect(results.displayLine).to.equal('BWP: 0U');
+
   });
 
-  it('should calculate IOB results correctly with 1.0 U IOB', function (done) {
+  it('should calculate IOB results correctly with 1.0 U IOB', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: before, mgdl: 100}, {mills: now, mgdl: 100}];
     ctx.ddata.treatments = [{mills: now, insulin: '1.0'}];
-    
+
     var profile = {
       dia: 3
       , sens: 50
@@ -75,21 +74,20 @@ describe('boluswizardpreview', function ( ) {
     var sbx = prepareSandbox();
     var results = boluswizardpreview.calc(sbx);
 
-    Math.round(results.effect).should.equal(50);
-    results.effectDisplay.should.equal(50);
-    Math.round(results.outcome).should.equal(50);
-    results.outcomeDisplay.should.equal(50);
-    results.bolusEstimate.should.equal(0);
-    results.displayLine.should.equal('BWP: 0U');
-    
-    done();
+    expect(Math.round(results.effect)).to.equal(50);
+    expect(results.effectDisplay).to.equal(50);
+    expect(Math.round(results.outcome)).to.equal(50);
+    expect(results.outcomeDisplay).to.equal(50);
+    expect(results.bolusEstimate).to.equal(0);
+    expect(results.displayLine).to.equal('BWP: 0U');
+
   });
 
-  it('should calculate IOB results correctly with 1.0 U IOB resulting in going low', function (done) {
+  it('should calculate IOB results correctly with 1.0 U IOB resulting in going low', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: before, mgdl: 100}, {mills: now, mgdl: 100}];
     ctx.ddata.treatments = [{mills: now, insulin: '1.0'}];
-    
+
     var profile = {
       dia: 3
       , sens: 50
@@ -98,25 +96,24 @@ describe('boluswizardpreview', function ( ) {
       , basal: 1
     };
 
-    
+
     ctx.ddata.profiles = [profile];
 
     var sbx = prepareSandbox();
     var results = boluswizardpreview.calc(sbx);
-    
-    Math.round(results.effect).should.equal(50);
-    results.effectDisplay.should.equal(50);
-    Math.round(results.outcome).should.equal(50);
-    results.outcomeDisplay.should.equal(50);
-    Math.round(results.bolusEstimate).should.equal(-1);
-    results.displayLine.should.equal('BWP: -1.00U');
-    results.tempBasalAdjustment.thirtymin.should.equal(-100);
-    results.tempBasalAdjustment.onehour.should.equal(0);
-    
-    done();
+
+    expect(Math.round(results.effect)).to.equal(50);
+    expect(results.effectDisplay).to.equal(50);
+    expect(Math.round(results.outcome)).to.equal(50);
+    expect(results.outcomeDisplay).to.equal(50);
+    expect(Math.round(results.bolusEstimate)).to.equal(-1);
+    expect(results.displayLine).to.equal('BWP: -1.00U');
+    expect(results.tempBasalAdjustment.thirtymin).to.equal(-100);
+    expect(results.tempBasalAdjustment.onehour).to.equal(0);
+
   });
 
- it('should calculate IOB results correctly with 1.0 U IOB resulting in going low in MMOL', function (done) {
+ it('should calculate IOB results correctly with 1.0 U IOB resulting in going low in MMOL', () => {
 
     // boilerplate for client sandbox running in mmol
 
@@ -137,9 +134,9 @@ describe('boluswizardpreview', function ( ) {
       , pluginBase: {}
       , moment: helper.ctx.moment
     };
-    
+
     ctx.language = require('../lib/language')();
-    
+
     var data = {sgvs: [{mills: before, mgdl: 100}, {mills: now, mgdl: 100}]};
     data.treatments = [{mills: now, insulin: '1.0'}];
     data.devicestatus = [];
@@ -148,19 +145,18 @@ describe('boluswizardpreview', function ( ) {
     sbx.properties.iob = iob.calcTotal(data.treatments, data.devicestatus, data.profile, now);
 
     var results = boluswizardpreview.calc(sbx);
-    
-    results.effect.should.equal(10);
-    results.outcome.should.equal(-4.4);
-    results.bolusEstimate.should.equal(-1);
-    results.displayLine.should.equal('BWP: -1.00U');
-    results.tempBasalAdjustment.thirtymin.should.equal(-100);
-    results.tempBasalAdjustment.onehour.should.equal(0);
-    
-    done();
+
+    expect(results.effect).to.equal(10);
+    expect(results.outcome).to.equal(-4.4);
+    expect(results.bolusEstimate).to.equal(-1);
+    expect(results.displayLine).to.equal('BWP: -1.00U');
+    expect(results.tempBasalAdjustment.thirtymin).to.equal(-100);
+    expect(results.tempBasalAdjustment.onehour).to.equal(0);
+
   });
 
 
- it('should calculate IOB results correctly with 0.45 U IOB resulting in going low in MMOL', function (done) {
+ it('should calculate IOB results correctly with 0.45 U IOB resulting in going low in MMOL', () => {
 
     // boilerplate for client sandbox running in mmol
 
@@ -181,7 +177,7 @@ describe('boluswizardpreview', function ( ) {
       , pluginBase: {}
       , moment: helper.ctx.moment
     };
-    
+
     ctx.language = require('../lib/language')();
 
     var data = {sgvs: [{mills: before, mgdl: 175}, {mills: now, mgdl: 153}]};
@@ -192,19 +188,18 @@ describe('boluswizardpreview', function ( ) {
     sbx.properties.iob = iob.calcTotal(data.treatments, data.devicestatus, data.profile, now);
 
     var results = boluswizardpreview.calc(sbx);
-    
-    results.effect.should.equal(4.05);
-    results.outcome.should.equal(4.45);
-    Math.round(results.bolusEstimate*100).should.equal(-6);
-    results.displayLine.should.equal('BWP: -0.07U');
-    results.tempBasalAdjustment.thirtymin.should.equal(2);
-    results.tempBasalAdjustment.onehour.should.equal(51);
-    
-    done();
+
+    expect(results.effect).to.equal(4.05);
+    expect(results.outcome).to.equal(4.45);
+    expect(Math.round(results.bolusEstimate*100)).to.equal(-6);
+    expect(results.displayLine).to.equal('BWP: -0.07U');
+    expect(results.tempBasalAdjustment.thirtymin).to.equal(2);
+    expect(results.tempBasalAdjustment.onehour).to.equal(51);
+
   });
 
 
-  it('Not trigger an alarm when in range', function (done) {
+  it('Not trigger an alarm when in range', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: before, mgdl: 95}, {mills: now, mgdl: 100}];
     ctx.ddata.treatments = [];
@@ -213,12 +208,11 @@ describe('boluswizardpreview', function ( ) {
     var sbx = prepareSandbox();
     boluswizardpreview.checkNotifications(sbx);
 
-    should.not.exist(ctx.notifications.findHighestAlarm());
+    expect(ctx.notifications.findHighestAlarm()).to.not.exist;
 
-    done();
   });
 
-  it('trigger a warning when going out of range', function (done) {
+  it('trigger a warning when going out of range', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: before, mgdl: 175}, {mills: now, mgdl: 180}];
     ctx.ddata.treatments = [];
@@ -228,13 +222,12 @@ describe('boluswizardpreview', function ( ) {
     boluswizardpreview.checkNotifications(sbx);
 
     var highest = ctx.notifications.findHighestAlarm();
-    highest.level.should.equal(ctx.levels.WARN);
-    highest.title.should.equal('Warning, Check BG, time to bolus?');
-    highest.message.should.equal('BG Now: 180 +5 ↗ mg/dl\nBG 15m: 187 mg/dl\nBWP: 0.66U');
-    done();
+    expect(highest.level).to.equal(ctx.levels.WARN);
+    expect(highest.title).to.equal('Warning, Check BG, time to bolus?');
+    expect(highest.message).to.equal('BG Now: 180 +5 ↗ mg/dl\nBG 15m: 187 mg/dl\nBWP: 0.66U');
   });
 
-  it('trigger an urgent alarms when going too high', function (done) {
+  it('trigger an urgent alarms when going too high', () => {
     ctx.notifications.initRequests();
     ctx.ddata.sgvs = [{mills: before, mgdl: 295}, {mills: now, mgdl: 300}];
     ctx.ddata.treatments = [];
@@ -242,50 +235,48 @@ describe('boluswizardpreview', function ( ) {
 
     var sbx = prepareSandbox();
     boluswizardpreview.checkNotifications(sbx);
-    ctx.notifications.findHighestAlarm().level.should.equal(ctx.levels.URGENT);
+    expect(ctx.notifications.findHighestAlarm().level).to.equal(ctx.levels.URGENT);
 
-    done();
   });
 
-  it('request a snooze when there is enough IOB', function (done) {
+  it('request a snooze when there is enough IOB', () => {
+    return new Promise((done) => { // Return a Promise
+      ctx.notifications.resetStateForTests();
+      ctx.notifications.initRequests();
+      ctx.ddata.sgvs = [{mills: before, mgdl: 295}, {mills: now, mgdl: 300}];
+      ctx.ddata.treatments = [{mills: before, insulin: '5.0'}];
+      ctx.ddata.profiles = [profile];
 
-    ctx.notifications.resetStateForTests();
-    ctx.notifications.initRequests();
-    ctx.ddata.sgvs = [{mills: before, mgdl: 295}, {mills: now, mgdl: 300}];
-    ctx.ddata.treatments = [{mills: before, insulin: '5.0'}];
-    ctx.ddata.profiles = [profile];
+      var sbx = prepareSandbox();
 
-    var sbx = prepareSandbox();
+      //start fresh to we don't pick up other notifications
+      ctx.bus = new Stream;
+      //if notification doesn't get called test will time out
+      ctx.bus.on('notification', function callback (notify) {
+        expect(notify.clear).to.equal(true);
+        if (notify.clear) {
+          done();
+        }
+      });
 
-    //start fresh to we don't pick up other notifications
-    ctx.bus = new Stream;
-    //if notification doesn't get called test will time out
-    ctx.bus.on('notification', function callback (notify) {
-      notify.clear.should.equal(true);
-      if (notify.clear) {
-        done();
-      }
+      ar2.checkNotifications(sbx);
+      boluswizardpreview.checkNotifications(sbx);
+      ctx.notifications.process();
     });
-
-    ar2.checkNotifications(sbx);
-    boluswizardpreview.checkNotifications(sbx);
-    ctx.notifications.process();
-
   });
 
-  it('set a pill to the BWP with infos', function (done) {
+  it('set a pill to the BWP with infos', () => {
     var ctx = {
       settings: {}
       , pluginBase: {
         updatePillText: function mockedUpdatePillText(plugin, options) {
-          options.label.should.equal('BWP');
-          options.value.should.equal('0.50U');
-          done();
+          expect(options.label).to.equal('BWP');
+          expect(options.value).to.equal('0.50U');
         }
       }
       , moment: helper.ctx.moment
     };
-    
+
     ctx.language = require('../lib/language')();
     var loadedProfile = require('../lib/profilefunctions')(null, ctx);
     loadedProfile.loadData([profile]);

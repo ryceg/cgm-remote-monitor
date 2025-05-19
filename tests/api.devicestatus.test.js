@@ -1,36 +1,35 @@
-'use strict';
+import request from 'supertest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import lang from '../lib/language';
 
-var _ = require('lodash');
-var request = require('supertest');
-var should = require('should');
-var language = require('../lib/language')();
+describe('Devicestatus API', () => {
+  // this.timeout(10000); // Vitest default timeout is 5000ms, can be configured in vitest.config.js if needed
+  let self = {}; // Changed from this to self, and initialize as object
+  const known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
 
-describe('Devicestatus API', function ( ) {
-  this.timeout(10000);
-  var self = this;
-  var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
-
-  var api = require('../lib/api/');
-  beforeEach(function (done) {
+  const api = require('../lib/api/');
+  beforeEach(async () => { // Made async
     process.env.API_SECRET = 'this is my long pass phrase';
     self.env = require('../lib/server/env')();
     self.env.settings.authDefaultRoles = 'readable';
     self.env.settings.enable = ['careportal', 'api'];
-    this.wares = require('../lib/middleware/')(self.env);
+    self.wares = require('../lib/middleware/')(self.env); // Corrected: this.wares to self.wares
     self.app = require('express')();
     self.app.enable('api');
-    require('../lib/server/bootevent')(self.env, language).boot(function booted(ctx) {
-      self.ctx = ctx;
-      self.ctx.ddata = require('../lib/data/ddata')();
-      self.app.use('/api', api(self.env, ctx));
-      done();
+    await new Promise(resolve => { // Added promise for async boot
+      require('../lib/server/bootevent')(self.env, lang()).boot(function booted(ctx) {
+        self.ctx = ctx;
+        self.ctx.ddata = require('../lib/data/ddata')();
+        self.app.use('/api', api(self.env, ctx));
+        resolve(); // Resolve promise after boot
+      });
     });
   });
 
-  it('post a devicestatus, query, delete, verify gone', function (done) {
+  it('post a devicestatus, query, delete, verify gone', async () => { // Made async, removed done
     // insert a devicestatus - needs to be unique from example data
     console.log('Inserting devicestatus entry');
-    request(self.app)
+    await request(self.app)
       .post('/api/devicestatus/')
       .set('api-secret', known || '')
       .send({
@@ -43,55 +42,36 @@ describe('Devicestatus API', function ( ) {
         }
         , created_at: '2018-12-16T01:00:52Z'
       })
-      .expect(200)
-      .end(function (err) {
-        if (err) {
-          done(err);
-        } else {
-          // make sure devicestatus was inserted successfully
-          console.log('Ensuring devicestatus entry was inserted successfully');
-          request(self.app)
-            .get('/api/devicestatus/')
-            .query('find[created_at][$gte]=2018-12-16')
-            .query('find[created_at][$lte]=2018-12-17')
-            .set('api-secret', known || '')
-            .expect(200)
-            .expect(function (response) {
-              console.log(JSON.stringify(response.body[0]));
-              response.body[0].xdripjs.state.should.equal(6);
-              response.body[0].utcOffset.should.equal(0);
-            })
-            .end(function (err) {
-              if (err) {
-                done(err);
-              } else {
-                // delete the treatment
-                console.log('Deleting test treatment entry');
-                request(self.app)
-                  .delete('/api/devicestatus/')
-                  .query('find[created_at][$gte]=2018-12-16')
-                  .set('api-secret', known || '')
-                  .expect(200)
-                  .end(function (err) {
-                    if (err) {
-                      done(err);
-                    } else {
-                      // make sure it was deleted
-                      console.log('Testing if devicestatus was deleted');
-                      request(self.app)
-                        .get('/api/devicestatus/')
-                        .query('find[created_at][$lte]=2018-12-16')
-                        .set('api-secret', known || '')
-                        .expect(200)
-                        .expect(function (response) {
-                          response.body.length.should.equal(0);
-                        })
-                        .end(done);
-                    }
-                  });
-              }
-            });
-        }
-      });
+      .expect(200);
+
+    // make sure devicestatus was inserted successfully
+    console.log('Ensuring devicestatus entry was inserted successfully');
+    const getResponse = await request(self.app)
+      .get('/api/devicestatus/')
+      .query('find[created_at][$gte]=2018-12-16')
+      .query('find[created_at][$lte]=2018-12-17')
+      .set('api-secret', known || '')
+      .expect(200);
+
+    console.log(JSON.stringify(getResponse.body[0]));
+    expect(getResponse.body[0].xdripjs.state).toBe(6);
+    expect(getResponse.body[0].utcOffset).toBe(0);
+
+    // delete the treatment
+    console.log('Deleting test treatment entry');
+    await request(self.app)
+      .delete('/api/devicestatus/')
+      .query('find[created_at][$gte]=2018-12-16')
+      .set('api-secret', known || '')
+      .expect(200);
+
+    // make sure it was deleted
+    console.log('Testing if devicestatus was deleted');
+    const finalGetResponse = await request(self.app)
+      .get('/api/devicestatus/')
+      .query('find[created_at][$lte]=2018-12-16')
+      .set('api-secret', known || '')
+      .expect(200);
+    expect(finalGetResponse.body.length).toBe(0);
   });
 });

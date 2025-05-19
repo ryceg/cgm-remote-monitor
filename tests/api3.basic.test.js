@@ -1,42 +1,40 @@
-'use strict';
+import { describe, test, beforeAll, afterAll, expect } from 'vitest';
+import request from 'supertest';
 
-const request = require('supertest');
-require('should');
+import testConst from './fixtures/api3/const.json';
+import instance from './fixtures/api3/instance';
+import apiConst from '../lib/api3/const.json';
+import software from '../package.json';
 
-describe('Basic REST API3', function() {
-  const self = this
-    , testConst = require('./fixtures/api3/const.json')
-    , instance = require('./fixtures/api3/instance')
-    ;
+describe('Basic REST API3', () => {
+  let self = {}; // Using an object to hold context
 
-  this.timeout(15000);
+  // this.timeout(15000); // Vitest default timeout or configure globally/per-test
 
-  before(async () => {
+  beforeAll(async () => {
     self.instance = await instance.create({});
     self.app = self.instance.app;
     self.env = self.instance.env;
   });
 
-
-  after(function after () {
-    self.instance.ctx.bus.teardown();
+  afterAll(() => { // Removed async as teardown is not async
+    if (self.instance && self.instance.ctx && self.instance.ctx.bus && self.instance.ctx.bus.teardown) {
+      self.instance.ctx.bus.teardown();
+    }
   });
 
-
-  it('GET /version', async () => {
-    let res = await request(self.app)
+  test('GET /version', async () => {
+    const res = await request(self.app)
       .get('/api/v3/version')
       .expect(200);
 
-    const apiConst = require('../lib/api3/const.json')
-      , software = require('../package.json')
-      , result = res.body.result;
+    const result = res.body.result;
 
-    res.body.status.should.equal(200);
-    result.version.should.equal(software.version);
-    result.apiVersion.should.equal(apiConst.API3_VERSION);
-    result.srvDate.should.be.within(testConst.YEAR_2019, testConst.YEAR_2050);
+    expect(res.body.status).toBe(200);
+    expect(result.version).toBe(software.version);
+    expect(result.apiVersion).toBe(apiConst.API3_VERSION);
+    expect(result.srvDate).toBeGreaterThanOrEqual(testConst.YEAR_2019);
+    expect(result.srvDate).toBeLessThanOrEqual(testConst.YEAR_2050);
   });
-
 });
 

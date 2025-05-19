@@ -1,20 +1,14 @@
 /* eslint require-atomic-updates: 0 */
-'use strict';
+import { describe, test, beforeAll, afterAll, beforeEach, afterEach, expect } from 'vitest';
 
-require('should');
+import instance from './fixtures/api3/instance';
+import authSubject from './fixtures/api3/authSubject';
 
-describe('API3 UPDATE', function() {
-  const self = this
-    , instance = require('./fixtures/api3/instance')
-    , authSubject = require('./fixtures/api3/authSubject')
-    ;
+describe('API3 DELETE', () => {
+  let self = {};
 
-  self.timeout(15000);
-
-
-  before(async () => {
+  beforeAll(async () => {
     self.instance = await instance.create({});
-
     self.app = self.instance.app;
     self.env = self.instance.env;
     self.url = '/api/v3/treatments';
@@ -28,38 +22,31 @@ describe('API3 UPDATE', function() {
     self.cache = self.instance.cacheMonitor;
   });
 
-
-  after(() => {
-    self.instance.ctx.bus.teardown();
+  afterAll(() => {
+    if (self.instance && self.instance.ctx && self.instance.ctx.bus && self.instance.ctx.bus.teardown) {
+      self.instance.ctx.bus.teardown();
+    }
   });
-
 
   beforeEach(() => {
-    self.cache.clear();
+    if (self.cache) self.cache.clear();
   });
-
 
   afterEach(() => {
-    self.cache.shouldBeEmpty();
+    if (self.cache) expect(self.cache.isEmpty()).toBe(true);
   });
 
-
-  it('should require authentication', async () => {
+  test('should require authentication', async () => {
     let res = await self.instance.delete(`${self.url}/FAKE_IDENTIFIER`)
       .expect(401);
-
-    res.body.status.should.equal(401);
-    res.body.message.should.equal('Missing or bad access token or JWT');
+    expect(res.body.status).toBe(401);
+    expect(res.body.message).toBe('Missing or bad access token or JWT');
   });
 
-
-  it('should not found not existing collection', async () => {
-    let res = await self.instance.delete(`/api/v3/NOT_EXIST`, self.jwt.delete)
-      .send(self.validDoc)
+  test('should not found not existing collection', async () => {
+    let res = await self.instance.delete(`/api/v3/NOT_EXIST/FAKE_IDENTIFIER`, self.jwt.delete)
       .expect(404);
-
-    res.body.status.should.equal(404);
+    expect(res.body.status).toBe(404);
   });
-
 });
 
