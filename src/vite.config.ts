@@ -46,7 +46,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      crypto: "crypto-browserify",
+      '@utils': resolve(__dirname, 'frontend/lib/utils'),
+      '@dayjs': resolve(__dirname, 'frontend/lib/utils/dayjs'),
       stream: "stream-browserify",
     },
   },
