@@ -51,7 +51,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ["jquery-ui", "lodash", "d3"],
+    include: ["jquery-ui", "d3"],
   },
   server: { hmr: true },
 });

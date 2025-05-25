@@ -1,7 +1,5 @@
 "use strict";
 
-var _ = require("lodash");
-
 /** @typedef {ReturnType<BatteryAgePlugin["findLatestTimeChange"]>} BageProperties */
 
 /** @typedef {import("../types").Plugin} Plugin */
@@ -159,10 +157,9 @@ class BatteryAgePlugin {
       {
         label: this.translate("Inserted"),
         value: new Date(batteryInfo.treatmentDate ?? NaN).toLocaleString(),
-      },
-    ];
+      },    ];
 
-    if (!_.isEmpty(batteryInfo.notes)) {
+    if (batteryInfo.notes && batteryInfo.notes.trim()) {
       info.push({
         label: this.translate("Notes") + ":",
         value: batteryInfo.notes ?? "",

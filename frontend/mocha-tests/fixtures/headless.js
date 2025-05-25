@@ -1,5 +1,4 @@
 const fs = require("fs");
-const _ = require("lodash");
 const { Window } = require("happy-dom");
 const path = require("path");
 
@@ -66,8 +65,8 @@ function headless(binding = {}) {
         }
         maybeCall("open", options);
 
-        _.forEach(options.buttons, function (button) {
-          maybeCall("click", button);
+        Object.keys(opts?.buttons || []).forEach(function (key) {
+            maybeCall('click', opts.buttons[key]);
         });
       };
     }

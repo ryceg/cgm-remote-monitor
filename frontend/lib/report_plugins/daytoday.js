@@ -1,9 +1,36 @@
 "use strict";
 
-var _ = require("lodash");
-var moment = window.moment || require("moment-timezone");
+var dayjs = '../utils/dayjs'
 var times = require("../times");
 var d3 = (global && global.d3) || require("d3");
+
+/**
+ * Deep equality check for objects and arrays
+ * @param {any} a
+ * @param {any} b
+ * @returns {boolean}
+ */
+function isEqual(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!isEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (typeof a === 'object' && typeof b === 'object') {
+    const keysA = Object.keys(a);
+    const keysB = Object.keys(b);
+    if (keysA.length !== keysB.length) return false;
+    for (let key of keysA) {
+      if (!keysB.includes(key) || !isEqual(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  return false;
+}
 
 var daytoday = {
   name: "daytoday",
@@ -271,7 +298,7 @@ daytoday.report = function report_daytoday(
     // create svg and g to contain the chart contents
     charts = d3
       .select("#daytodaychart-" + day)
-      .html("<b>" + report_plugins.utils.localeDate(moment(day)) + "</b><br>")
+      .html("<b>" + report_plugins.utils.localeDate(dayjs(day)) + "</b><br>")
       .append("svg");
 
     charts
@@ -368,9 +395,7 @@ daytoday.report = function report_daytoday(
       .style("stroke", "black")
       .style("shape-rendering", "crispEdges")
       .style("fill", "none")
-      .call(xAxis2);
-
-    _.each(tickValues, function (n, li) {
+      .call(xAxis2);    tickValues.forEach(function (n, li) {
       context
         .append("line")
         .attr("class", "high-line")
@@ -523,17 +548,17 @@ daytoday.report = function report_daytoday(
 
           if (predictedIndex != null) {
             entry = predictions[predictedIndex]; // Start entry
-            var d = moment(entry.startDate);
-            var end = moment().endOf("day");
+            var d = dayjs(entry.startDate);
+            var end = dayjs().endOf("day");
             if (options.predictedTruncate) {
               if (Nightscout.predictions.offset >= 0) {
                 // If we are looking forward we want to stop at the next treatment
                 if (treatmentsIndex < treatmentsTimestamps.length - 1) {
-                  end = moment(treatmentsTimestamps[treatmentsIndex + 1]);
+                  end = dayjs(treatmentsTimestamps[treatmentsIndex + 1]);
                 }
               } else {
                 // If we are looking back, then we want to stop at "this" treatment
-                end = moment(treatmentsTimestamps[treatmentsIndex]);
+                end = dayjs(treatmentsTimestamps[treatmentsIndex]);
               }
             }
             for (var entryIndex in entry.values) {
@@ -556,7 +581,7 @@ daytoday.report = function report_daytoday(
     /* (so if we have bolused or eaten we want to find the prediction that Loop has estimated just after that) */
     /* Returns the index into the predictions array that is the predicted we are looking for */
     function findPredicted(predictions, timestamp, offset) {
-      var ts = moment(timestamp).add(offset, "minutes");
+      var ts = dayjs(timestamp).add(offset, "minutes");
       var predicted = null;
       if (offset && offset < 0) {
         // If offset is negative, start searching from first prediction going forward
@@ -564,7 +589,7 @@ daytoday.report = function report_daytoday(
           if (
             predictions[i] &&
             predictions[i].startDate &&
-            moment(predictions[i].startDate) <= ts
+            dayjs(predictions[i].startDate) <= ts
           ) {
             predicted = i;
           }
@@ -575,7 +600,7 @@ daytoday.report = function report_daytoday(
           if (
             predictions[i] &&
             predictions[i].startDate &&
-            moment(predictions[i].startDate) >= ts
+            dayjs(predictions[i].startDate) >= ts
           ) {
             predicted = i;
           }
@@ -597,8 +622,8 @@ daytoday.report = function report_daytoday(
 
     contextCircles.exit().remove();
 
-    var from = moment.tz(moment(day), profile.getTimezone()).startOf("day");
-    var to = moment(from.clone()).add(1, "days");
+    var from = dayjs.tz(dayjs(day), profile.getTimezone()).startOf("day");
+    var to = dayjs(from.clone()).add(1, "days");
     var iobpolyline = "",
       cobpolyline = "";
 
@@ -637,13 +662,13 @@ daytoday.report = function report_daytoday(
     var negativeTemps = 0;
 
     iobpolyline +=
-      xScale2(moment(from)) +
+      xScale2(dayjs(from)) +
       padding.left +
       "," +
       (yInsulinScale(0) + padding.top) +
       " ";
     cobpolyline +=
-      xScale2(moment(from)) +
+      xScale2(dayjs(from)) +
       padding.left +
       "," +
       (yCarbsScale(0) + padding.top) +
@@ -659,7 +684,7 @@ daytoday.report = function report_daytoday(
     console.log("Device COB status available: ", cobStatusAvailable);
     console.log("Device IOB status available: ", iobStatusAvailable);
 
-    for (var dt = moment(from); dt < to; dt.add(5, "minutes")) {
+    for (var dt = dayjs(from); dt < to; dt.add(5, "minutes")) {
       if (options.iob && !iobStatusAvailable) {
         var iob = client
           .plugins.byName("iob")
@@ -731,9 +756,7 @@ daytoday.report = function report_daytoday(
         if (tempPart < 0) {
           negativeTemps += tempPart;
           data.netBasalNegative[hournow] += tempPart;
-        }
-
-        if (!_.isEqual(lastbasal, basalvalue)) {
+        }        if (!isEqual(lastbasal, basalvalue)) {
           linedata.push({ d: date, b: basalvalue.totalbasal });
           notemplinedata.push({ d: date, b: basalvalue.basal });
           if (
@@ -768,7 +791,7 @@ daytoday.report = function report_daytoday(
           from.valueOf(),
           to.valueOf(),
         );
-      _.each(cobArray, function drawCob(point) {
+        cobArray.forEach(function drawCob(point) {
         if (
           previousdate !== 0 &&
           point.mills - previousdate > times.mins(15).msecs

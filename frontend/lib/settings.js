@@ -1,6 +1,5 @@
 "use strict";
 
-const _ = require("lodash");
 const constants = require("./constants");
 
 class Settings {
@@ -318,7 +317,6 @@ class Settings {
       return Number(value);
     }
   }
-
   /**
    * @param {unknown} value @returns {value is any[] | string | number | boolean
    *   | Symbol | bigint | undefined}
@@ -328,6 +326,15 @@ class Settings {
       Array.isArray(value) ||
       (typeof value !== "function" && typeof value !== "object")
     );
+  }
+
+  /**
+   * Convert camelCase to snake_case
+   * @param {string} str
+   * @returns {string}
+   */
+  #toSnakeCase(str) {
+    return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
   }
 
   /**
@@ -360,10 +367,8 @@ class Settings {
         /** @template {AccessorArg} TKey @param {TKey} key */ (key) => {
           const value = keys[key];
           if (this.#isSimple(value)) {
-            const newVal = accessor(key);
-
-            if (newVal !== undefined) {
-              const mapper = _.has(valueMappers, key) && valueMappers[key];
+            const newVal = accessor(key);            if (newVal !== undefined) {
+              const mapper = valueMappers.hasOwnProperty(key) && valueMappers[key];
               this.wasSet.push(key);
               keys[key] =
                 typeof mapper === "function" ? mapper(newVal) : newVal;
@@ -383,13 +388,12 @@ class Settings {
 
     /** @param {EnvAccessor} accessor @param {Record<string, any>} keys */
     const mapKeys = (accessor, keys) => {
-      Object.keys(keys).forEach((key) => {
-        const value = keys[key];
+      Object.keys(keys).forEach((key) => {        const value = keys[key];
         if (this.#isSimple(value)) {
-          const newVal = accessor(_.snakeCase(key).toUpperCase());
+          const newVal = accessor(this.#toSnakeCase(key).toUpperCase());
 
           if (newVal !== undefined) {
-            const mapper = _.has(valueMappers, key) && valueMappers[key];
+            const mapper = valueMappers.hasOwnProperty(key) && valueMappers[key];
             this.wasSet.push(key);
             keys[key] = typeof mapper === "function" ? mapper(newVal) : newVal;
           }
@@ -398,9 +402,8 @@ class Settings {
     };
 
     mapKeys(accessor, this);
-    mapKeys(accessor, this.thresholds);
-    this.#enableAndDisableFeatures((a) =>
-      accessor(_.snakeCase(a).toUpperCase())
+    mapKeys(accessor, this.thresholds);    this.#enableAndDisableFeatures((a) =>
+      accessor(this.#toSnakeCase(a).toUpperCase())
     );
   }
 

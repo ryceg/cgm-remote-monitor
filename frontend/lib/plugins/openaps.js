@@ -8,7 +8,6 @@ const consts = require("../constants");
 /** @import {Plugin, PluginEventType, DeviceStatus, OpenApsIob, OpenApsPredBGs, VirtAsstIntentHandlerFn} from "../types" */
 /** @import {Sbx, InitializedSandbox, ClientInitializedSandbox} from "../sandbox" */
 /** @import {PluginCtx} from "." */
-/** @import {Moment} from "moment" */
 
 /** @typedef {ReturnType<OpenApsPlugin["analyzeData"]>} OpenApsProperties */
 
@@ -17,7 +16,7 @@ const consts = require("../constants");
  *   name: string;
  *   uri: string;
  *   status: ReturnType<OpenApsPlugin["momentsToLoopStatus"]> & {
- *     when: Moment;
+ *     when: Dayjs;
  *   };
  * }} OpenApsDevice
  */

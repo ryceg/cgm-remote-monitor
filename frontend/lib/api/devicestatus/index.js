@@ -1,12 +1,7 @@
 'use strict';
 
 const consts = require('../../constants');
-const dayjs = require("dayjs");
-const utc = require("dayjs/plugin/utc");
-const timezone = require("dayjs/plugin/timezone");
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
+const dayjs = require("../../utils/dayjs");
 
 function configure (app, wares, ctx, env) {
   var express = require('express')
@@ -34,7 +29,7 @@ function configure (app, wares, ctx, env) {
       const r = [];
       results.forEach(function(e) {
         if (e.created_at && Object.prototype.hasOwnProperty.call(e, 'utcOffset')) {
-          const d = moment(e.created_at).utcOffset(e.utcOffset);
+          const d = dayjs(e.created_at).utcOffset(e.utcOffset);
           e.created_at = d.toISOString(true);
           delete e.utcOffset;
         }

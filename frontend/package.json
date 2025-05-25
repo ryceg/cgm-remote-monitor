@@ -38,7 +38,6 @@
     "jquery-ui-bundle": "^1.12.1-migrate",
     "jquery.tooltips": "^1.0.0",
     "js-storage": "^1.1.0",
-    "lodash": "^4.17.21",
     "memory-cache": "^0.2.0",
     "moment-timezone": "^0.5.46",
     "parse-duration": "^1.1.0",
@@ -52,7 +51,6 @@
   "devDependencies": {
     "@types/jquery": "^3.5.32",
     "@types/jqueryui": "^1.12.23",
-    "@types/lodash": "^4.17.13",
     "@types/memory-cache": "^0.2.6",
     "@types/moment": "^2.11.29",
     "@types/moment-timezone": "^0.5.13",

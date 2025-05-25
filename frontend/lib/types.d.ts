@@ -4,7 +4,8 @@ import { ClientInitializedSandbox, InitializedSandbox } from "./sandbox";
 import newBolusCalc from "./client/boluscalc";
 import newCareportal from "./client/careportal";
 import Client from "./client";
-import { DurationInputArg1, Moment, MomentInput } from "moment";
+import { Dayjs } from "dayjs";
+import { DurationInputArg1, MomentInput } from "moment";
 
 type NotifyBase = {
   level: Level;
@@ -262,7 +263,7 @@ export type DeviceStatus = {
       reason?: string;
     };
     timestamp: number;
-    moment?: Moment;
+    moment?: Dayjs;
     recommendedBolus?: number;
     recommendedTempBasal?: {
       timestamp: number;
@@ -309,10 +310,10 @@ export type DeviceStatus = {
   };
   device: string;
   isCharging?: boolean;
-  moment: Moment;
+  moment: Dayjs;
   mmtune?: {
     timestamp?: number;
-    moment?: Moment;
+    moment?: Dayjs;
     scanDetails?: number[][];
     setFreq: string;
   };

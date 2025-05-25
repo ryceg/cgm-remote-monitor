@@ -193,14 +193,8 @@ var init = function init() {
 
       // fill careportal events
       $("#rp_eventtype").empty();
-      _.each(client.careportal.events, function eachEvent(event) {
-        $("#rp_eventtype").append(
-          '<option value="' +
-            event.val +
-            '">' +
-            translate(event.name) +
-            "</option>",
-        );
+      client.careportal.events?.forEach(function eachEvent (event) {
+        $('#rp_eventtype').append('<option value="' + event.val + '">' + translate(event.name) + '</option>');
       });
       $("#rp_eventtype").append(
         '<option value="sensor">' +
@@ -1162,8 +1156,8 @@ var init = function init() {
         return true;
       });
 
-      data.sgv = data.sgv.map(function eachSgv(sgv) {
-        var status = _.find(data.devicestatus, function (d) {
+      data.sgv = data.sgv.map(function eachSgv (sgv) {
+        var status = data.devicestatus.find(function(d) {
           return d.mills >= sgv.mills && d.mills < sgv.mills + 5 * 60 * 1000;
         });
 

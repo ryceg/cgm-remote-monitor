@@ -2,7 +2,6 @@
 
 var async = require('async');
 const dayjs = require('../utils/dayjs');
-const _ = require('lodash');
 
 var find_options = require('./query');
 

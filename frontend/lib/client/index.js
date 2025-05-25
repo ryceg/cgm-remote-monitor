@@ -29,8 +29,8 @@ const FORMAT_TIME_24_SCALE = "%H";
 
 var brushing = false;
 
-const moment = window.moment || require("moment-timezone");
-const timezones = moment.tz.names();
+const dayjs = window.moment || require("moment-timezone");
+const timezones = dayjs.tz.names();
 
 // var client = {};
 
@@ -454,7 +454,7 @@ class Client {
       extendedSettings: this.settings.extendedSettings,
       language: language,
       levels: levels,
-      moment: moment,
+      moment: dayjs,
     }).registerClientDefaults();
 
     this.browserSettings?.loadPluginSettings(this);
@@ -462,7 +462,7 @@ class Client {
     this.utils = require("../utils")({
       settings: this.settings,
       language,
-      dayjs: moment,
+      dayjs: dayjs,
       levels,
     });
 
@@ -483,7 +483,7 @@ class Client {
         this.bgStatus,
         this.tooltip
       ),
-      moment,
+      moment: dayjs,
       timezones,
       language,
       levels,

@@ -1,12 +1,5 @@
 "use strict";
 
-var _find = require("lodash/find");
-var _each = require("lodash/each");
-var _filter = require("lodash/filter");
-var _get = require("lodash/get");
-var _isArray = require("lodash/isArray");
-var _map = require("lodash/map");
-
 /**
  * @typedef {{
  *   settings: ReturnType<import("../settings")>;

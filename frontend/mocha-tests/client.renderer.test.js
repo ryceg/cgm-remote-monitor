@@ -1,7 +1,6 @@
 "use strict";
 
 require("should");
-let _ = require("lodash");
 
 let renderer = require("../lib/client/renderer");
 
@@ -14,7 +13,7 @@ describe("renderer", () => {
       { width: 900, expectedScale: 1.75 },
     ];
 
-    _.forEach(PREV_CHART_WIDTHS, (prev) => {
+    PREV_CHART_WIDTHS.forEach((prev) => {
       describe(`prevChartWidth < ${prev.width}`, () => {
         let mockClient = {
           utils: true,

@@ -5,8 +5,6 @@
 import "jquery-ui-bundle";
 import "jquery.tooltips";
 
-import _ from "lodash";
-window._ = _;
 import * as d3 from "d3";
 window.d3 = d3;
 

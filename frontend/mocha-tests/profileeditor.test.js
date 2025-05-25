@@ -1,7 +1,6 @@
 "use strict";
 
 require("should");
-var _ = require("lodash");
 const path = require("path");
 var read = require("fs").readFileSync;
 
