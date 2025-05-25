@@ -1,6 +1,6 @@
 'use strict';
 
-var dayjs;
+const dayjs = require('@dayjs');
 
 var cleantreatmentsdb = {
   name: 'cleantreatmentsdb'
@@ -8,8 +8,7 @@ var cleantreatmentsdb = {
   , pluginType: 'admin'
 };
 
-function init(ctx) {
-  dayjs = ctx.dayjs;
+function init() {
   return cleantreatmentsdb;
 }
 

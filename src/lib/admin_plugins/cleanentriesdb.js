@@ -8,7 +8,7 @@ var cleanentriesdb = {
   , pluginType: 'admin'
 };
 
-function init(ctx) {
+function init() {
   return cleanentriesdb;
 }
 

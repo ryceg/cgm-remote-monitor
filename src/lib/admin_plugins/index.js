@@ -1,13 +1,14 @@
 'use strict';
 
-function init(ctx) {
+function init() {
+  console.log('Initializing admin plugins', );
     var allPlugins = [
-        require('./subjects')(ctx)
-      , require('./roles')(ctx)
-      , require('./cleanstatusdb')(ctx)
-      , require('./cleantreatmentsdb')(ctx)
-      , require('./cleanentriesdb')(ctx)
-      , require('./futureitems')(ctx)
+        require('./subjects')()
+      , require('./roles')()
+      , require('./cleanstatusdb')()
+      , require('./cleantreatmentsdb')()
+      , require('./cleanentriesdb')()
+      , require('./futureitems')()
     ];
   function plugins(name) {
     if (name) {
