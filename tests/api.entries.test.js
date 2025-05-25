@@ -10,7 +10,7 @@ require('should');
 const FIVE_MINUTES=1000*60*5;
 
 describe('Entries REST api', function ( ) {
-  var entries = require('../lib/api/entries/');
+  var entries = require('../frontend/lib/api/entries');
   var self = this;
   var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
 

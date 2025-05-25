@@ -11,7 +11,7 @@ describe('Treatment API', function ( ) {
 
   var api_secret_hash = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
 
-  var api = require('../lib/api/');
+  var api = require('../frontend/lib/api');
   beforeEach(function (done) {
     process.env.API_SECRET = 'this is my long pass phrase';
     self.env = require('../lib/server/env')();

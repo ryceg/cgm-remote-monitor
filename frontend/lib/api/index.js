@@ -53,7 +53,7 @@ function create (env, ctx) {
   app.all('/devicestatus*', require('./devicestatus/')(app, wares, ctx, env));
   app.all('/notifications*', require('./notifications-api')(app, wares, ctx));
 
-  app.all('/activity*', require('./activity/')(app, wares, ctx));
+  app.all('/activity*', require('./activity')(app, wares, ctx));
 
   app.use('/', wares.sendJSONStatus, require('./verifyauth')(ctx));
 
@@ -65,7 +65,7 @@ function create (env, ctx) {
   app.all('/status*', require('./status')(app, wares, env, ctx));
 
   if (ctx.alexa) {
-    app.all('/alexa*', require('./alexa/')(app, wares, ctx, env));
+    app.all('/alexa*', require('./alexa')(app, wares, ctx, env));
   }
 
   if (ctx.googleHome) {

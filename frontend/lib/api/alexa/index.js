@@ -1,6 +1,6 @@
 'use strict';
 
-const dayjs = require('../../utils/dayjs');
+const dayjs = require('../../../../lib/utils/dayjs');
 
 function configure (app, wares, ctx, env) {
   var express = require('express')

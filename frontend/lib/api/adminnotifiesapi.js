@@ -1,6 +1,6 @@
 'use strict';
 
-const consts = require('../constants');
+const consts = require('../../../lib/constants');
 
 function configure (ctx) {
   const express = require('express')

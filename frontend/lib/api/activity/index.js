@@ -1,6 +1,6 @@
 'use strict';
 
-var consts = require('../../constants');
+var consts = require('../../../../lib/constants');
 const dayjs = require("dayjs");
 
 function configure(app, wares, ctx) {
@@ -47,7 +47,7 @@ function configure(app, wares, ctx) {
 
             if (d1 != null) res.setHeader('Last-Modified', d1.toUTCString());
 
-            if (ifModifiedSince && d1.getTime() <= dayjs(ifModifiedSince).valueOf()) { 
+            if (ifModifiedSince && d1.getTime() <= dayjs(ifModifiedSince).valueOf()) {
                 res.status(304).send({
                     status: 304
                     , message: 'Not modified'
