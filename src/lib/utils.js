@@ -38,6 +38,16 @@ class Utils {
     }
   }
 
+    /**
+   *
+   * @param {Object|Array<any>} obj
+   * @returns {boolean} - true if the object is empty
+   */
+  isEmpty = obj => {
+    const value = obj || {};
+    return (value.constructor === Object || value.constructor === Array) && !Object.entries(value).length;
+  };
+
   /**
    * Round the number to maxDigits places, return a string
    * that truncates trailing zeros

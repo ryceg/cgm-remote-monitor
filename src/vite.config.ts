@@ -59,5 +59,29 @@ export default defineConfig({
   optimizeDeps: {
     include: ["jquery-ui", "d3"],
   },
-  server: { hmr: true },
+  server: {
+    hmr: true,
+    proxy: {
+      '/api/v1': { // Changed from '/api/' to be specific for /api/v1 paths
+        target: 'http://localhost:1337',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/v1/, ''), // Strips /api/v1 prefix
+      },
+      '/api2/': {
+        target: 'http://localhost:1337',
+        changeOrigin: true,
+        // If /api2/* paths also need rewriting to remove the /api2 prefix, add:
+        // rewrite: (path) => path.replace(/^\/api2/, ''),
+      },
+      '/api3/': {
+        target: 'http://localhost:1337',
+        changeOrigin: true,
+        // If /api3/* paths also need rewriting to remove the /api3 prefix, add:
+        // rewrite: (path) => path.replace(/^\/api3/, ''),
+      }
+      // If you had other paths starting with /api/ (but not /api/v1, /api2, or /api3)
+      // that were handled by the previous generic '/api/' rule,
+      // you might need to add a separate rule for them.
+    }
+  },
 });
