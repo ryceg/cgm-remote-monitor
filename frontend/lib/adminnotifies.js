@@ -1,53 +1,68 @@
-'use strict';
+"use strict";
 
-function init (ctx) {
+const { ONE_HOUR } = require("./constants");
 
-  const adminnotifies = {};
+class AdminNotifies {
+  /**
+   * @param {{
+   *   bus: ReturnType<import("./bus")>;
+   *   settings: ReturnType<import("./settings")>;
+   * }} ctx
+   */
+  constructor(ctx) {
+    /** @protected */
+    this.ctx = ctx;
+    /**
+     * @type {(import("./types").NotifyBase & {
+     *   [K in "count" | "lastRecorded"]: NonNullable<
+     *     import("./types").NotifyBase[K]
+     *   >;
+     * })[]}
+     */
+    this.notifies = [];
 
-  adminnotifies.addNotify = function addnotify (notify) {
-    if (!ctx.settings.adminNotifiesEnabled) {
-      console.log('Admin notifies disabled, skipping notify', notify);
+    this.ctx.bus.on("admin-notify", this.addNotify);
+    this.ctx.bus.on("tick", this.clean);
+  }
+
+  /** @param {import("./types").NotifyBase} notify */
+  addNotify(notify) {
+    if (!this.ctx.settings.adminNotifiesEnabled) {
+      console.log("Admin notifies disabled, skipping notify", notify);
       return;
     }
 
     if (!notify) return;
 
-    notify.title = notify.title || 'No title';
-    notify.message = notify.message || 'No message';
-    const existingMessage = adminnotifies.notifies.find(function findExisting (obj) {
-      return obj.message == notify.message;
-    });
+    notify.title ||= "None";
+    notify.message ||= "None";
+
+    const existingMessage = this.notifies.find(
+      ({ message }) => message === notify.message
+    );
 
     if (existingMessage) {
       existingMessage.count += 1;
       existingMessage.lastRecorded = Date.now();
     } else {
-      notify.count = 1;
-      notify.lastRecorded = Date.now();
-      adminnotifies.notifies.push(notify);
+      this.notifies.push({ ...notify, count: 1, lastRecorded: Date.now() });
     }
   }
 
-  adminnotifies.getNotifies = function getNotifies () {
-    return adminnotifies.notifies;
+  getNotifies() {
+    return this.notifies;
   }
 
-  ctx.bus.on('admin-notify', adminnotifies.addNotify);
-  adminnotifies.clean = function cleanNotifies () {
-    adminnotifies.notifies = adminnotifies.notifies.filter(function findExisting (obj) {
-      return obj.persistent || ((Date.now() - obj.lastRecorded) < 1000 * 60 * 60 * 12);
-    });
+  clean() {
+    this.notifies = this.notifies.filter(
+      (obj) => obj.persistent || Date.now() - obj.lastRecorded < 12 * ONE_HOUR
+    );
   }
 
-  adminnotifies.cleanAll = function cleanAll() {
-    adminnotifies.notifies = [];
+  cleanAll() {
+    this.notifies = [];
   }
-
-  adminnotifies.cleanAll();
-
-  ctx.bus.on('tick', adminnotifies.clean);
-
-  return adminnotifies;
 }
 
-module.exports = init;
+/** @param {ConstructorParameters<typeof AdminNotifies>} args */
+module.exports = (...args) => new AdminNotifies(...args);

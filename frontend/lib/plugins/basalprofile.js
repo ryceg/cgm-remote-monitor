@@ -1,167 +1,273 @@
-'use strict';
-var times = require('../times');
-var consts = require('../constants');
+"use strict";
 
-function init (ctx) {
-  var dayjs = ctx.dayjs;
+const times = require("../times");
+const consts = require("../constants");
 
-  var translate = ctx.language.translate;
+/**
+ * @typedef {{
+ *   display: string;
+ *   current: ReturnType<
+ *     ReturnType<import("../profilefunctions")>["getTempBasal"]
+ *   >;
+ * }} BasalProperties
+ */
 
-  var basal = {
-    name: 'basal'
-    , label: 'Basal Profile'
-    , pluginType: 'pill-minor'
-  };
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class BasalProfile {
+  name = /** @type {const} */ ("basal");
+  label = "Basal Profile";
+  pluginType = "pill-minor";
 
-  basal.setProperties = function setProperties (sbx) {
-    if (hasRequiredInfo(sbx)) {
-      var profile = sbx.data.profile;
-      var current = profile.getTempBasal(sbx.time);
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.dayjs = ctx.dayjs;
+    this.translate = ctx.language.translate;
+  }
 
-      var tempMark = '';
-      tempMark += current.treatment ? 'T' : '';
-      tempMark += current.combobolustreatment ? 'C' : '';
-      tempMark += tempMark ? ': ' : '';
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  setProperties(sbx) {
+    if (!this.hasRequiredInfo(sbx)) return;
 
-      sbx.offerProperty('basal', function setBasal() {
-        return {
-          display: tempMark + current.totalbasal.toFixed(3) + 'U'
-          , current: current
-        };
-      });
+    const profile = sbx.data.profile;
+    const current = profile.getTempBasal(sbx.time);
+
+    let tempMark = "";
+    tempMark += current.treatment ? "T" : "";
+    tempMark += current.combobolustreatment ? "C" : "";
+    tempMark += tempMark ? ": " : "";
+
+    sbx.offerProperty("basal", function setBasal() {
+      return {
+        display: tempMark + current.totalbasal.toFixed(3) + "U",
+        current: current,
+      };
+    });
+  }
+
+  /**
+   * @param {import("../sandbox").ClientInitializedSandbox} sbx
+   * @returns {sbx is
+   *   import("../sandbox").ClientInitializedSandbox & { data: {profile:
+   *   ReturnType<import("../profilefunctions")>}}}
+   */
+  hasRequiredInfo(sbx) {
+    if (!sbx.data.profile) {
+      return false;
     }
-  };
-
-
-  function hasRequiredInfo (sbx) {
-
-    if (!sbx.data.profile) { return false; }
 
     if (!sbx.data.profile.hasData()) {
-      console.warn('For the Basal plugin to function you need a treatment profile');
+      console.warn(
+        "For the Basal plugin to function you need a treatment profile"
+      );
       return false;
     }
 
     if (!sbx.data.profile.getBasal()) {
-      console.warn('For the Basal plugin to function you need a basal profile');
+      console.warn("For the Basal plugin to function you need a basal profile");
       return false;
     }
 
     return true;
- }
+  }
 
-  basal.updateVisualisation = function updateVisualisation (sbx) {
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    if (!this.hasRequiredInfo(sbx)) return;
 
-    if (!hasRequiredInfo(sbx)) {
-      return;
-    }
+    const profile = sbx.data.profile;
+    const prop = sbx.properties.basal;
+    const basalValue = prop && prop.current;
 
-    var profile = sbx.data.profile;
-    var prop = sbx.properties.basal;
-    var basalValue =  prop && prop.current;
+    const tzMessage = profile.getTimezone() ?? "Timezone not set in profile";
 
-    var tzMessage = profile.getTimezone() ? profile.getTimezone() : 'Timezone not set in profile';
-
-    var sensitivity = profile.getSensitivity(sbx.time);
-    var units = profile.getUnits();
+    let sensitivity = profile.getSensitivity(sbx.time) ?? NaN;
+    const units = profile.getUnits();
 
     if (sbx.settings.units != units) {
-      sensitivity *= (sbx.settings.units === 'mmol' ? (1 / consts.MMOL_TO_MGDL) : consts.MMOL_TO_MGDL);
-      var decimals = (sbx.settings.units === 'mmol' ? 10 : 1);
+      sensitivity *=
+        sbx.settings.units === "mmol"
+          ? 1 / consts.MMOL_TO_MGDL
+          : consts.MMOL_TO_MGDL;
+      const decimals = sbx.settings.units === "mmol" ? 10 : 1;
 
       sensitivity = Math.round(sensitivity * decimals) / decimals;
     }
 
-    var info = [{label: translate('Current basal'), value: prop.display}
-      , {label: translate('Sensitivity'), value: sensitivity + ' ' + sbx.settings.units + ' / U'}
-      , {label: translate('Current Carb Ratio'), value: '1 U / ' + profile.getCarbRatio(sbx.time) + 'g'}
-      , {label: translate('Basal timezone'), value: tzMessage}
-      , {label: '------------', value: ''}
-      , {label: translate('Active profile'), value: profile.activeProfileToTime(sbx.time)}
-      ];
+    const info = [
+      {
+        label: this.translate("Current basal"),
+        value: prop?.display,
+      },
+      {
+        label: this.translate("Sensitivity"),
+        value: sensitivity + " " + sbx.settings.units + " / U",
+      },
+      {
+        label: this.translate("Current Carb Ratio"),
+        value: "1 U / " + profile.getCarbRatio(sbx.time) + "g",
+      },
+      {
+        label: this.translate("Basal timezone"),
+        value: tzMessage,
+      },
+      {
+        label: "------------",
+        value: "",
+      },
+      {
+        label: this.translate("Active profile"),
+        value: profile.activeProfileToTime(sbx.time),
+      },
+    ];
 
-    var tempText, remaining;
-    if (basalValue.treatment) {
-      tempText = basalValue.treatment.percent ? (basalValue.treatment.percent > 0 ? '+' : '') + basalValue.treatment.percent + '%' :
-        !isNaN(basalValue.treatment.absolute) ? basalValue.treatment.absolute + 'U/h' : '';
-      remaining = parseInt(basalValue.treatment.duration - times.msecs(sbx.time - basalValue.treatment.mills).mins);
-      info.push({label: '------------', value: ''});
-      info.push({label: translate('Active temp basal'), value: tempText});
-      info.push({label: translate('Active temp basal start'), value: new Date(basalValue.treatment.mills).toLocaleString()});
-      info.push({label: translate('Active temp basal duration'), value: parseInt(basalValue.treatment.duration) + ' ' + translate('mins')});
-      info.push({label: translate('Active temp basal remaining'), value: remaining + ' ' + translate('mins')});
-      info.push({label: translate('Basal profile value'), value: basalValue.basal.toFixed(3) + ' U'});
+    /** @type {string} */
+    let tempText;
+    /** @type {number} */
+    let remaining;
+    if (basalValue?.treatment) {
+      tempText = basalValue.treatment.percent
+        ? (basalValue.treatment.percent > 0 ? "+" : "") +
+          basalValue.treatment.percent +
+          "%"
+        : !isNaN(basalValue.treatment.absolute)
+          ? basalValue.treatment.absolute + "U/h"
+          : "";
+      remaining = parseInt(
+        (basalValue.treatment.duration ?? NaN) -
+          times.msecs(sbx.time - basalValue.treatment.mills).mins
+      );
+      info.push({
+        label: "------------",
+        value: "",
+      });
+      info.push({
+        label: this.translate("Active temp basal"),
+        value: tempText,
+      });
+      info.push({
+        label: this.translate("Active temp basal start"),
+        value: new Date(basalValue.treatment.mills).toLocaleString(),
+      });
+      info.push({
+        label: this.translate("Active temp basal duration"),
+        value:
+          parseInt(basalValue.treatment.duration ?? NaN) +
+          " " +
+          this.translate("mins"),
+      });
+      info.push({
+        label: this.translate("Active temp basal remaining"),
+        value: remaining + " " + this.translate("mins"),
+      });
+      info.push({
+        label: this.translate("Basal profile value"),
+        value: basalValue.basal.toFixed(3) + " U",
+      });
     }
 
-    if (basalValue.combobolustreatment) {
-      tempText = (basalValue.combobolustreatment.relative ? '+' + basalValue.combobolustreatment.relative + 'U/h' : '');
-      remaining = parseInt(basalValue.combobolustreatment.duration - times.msecs(sbx.time - basalValue.combobolustreatment.mills).mins);
-      info.push({label: '------------', value: ''});
-      info.push({label: translate('Active combo bolus'), value: tempText});
-      info.push({label: translate('Active combo bolus start'), value: new Date(basalValue.combobolustreatment.mills).toLocaleString()});
-      info.push({label: translate('Active combo bolus duration'), value: parseInt(basalValue.combobolustreatment.duration) + ' ' + translate('mins')});
-      info.push({label: translate('Active combo bolus remaining'), value: remaining + ' ' + translate('mins')});
+    if (basalValue?.combobolustreatment) {
+      tempText = basalValue.combobolustreatment.relative
+        ? "+" + basalValue.combobolustreatment.relative + "U/h"
+        : "";
+      remaining = parseInt(
+        (basalValue.combobolustreatment.duration ?? NaN) -
+          times.msecs(sbx.time - basalValue.combobolustreatment.mills).mins
+      );
+      info.push({ label: "------------", value: "" });
+      info.push({
+        label: this.translate("Active combo bolus"),
+        value: tempText,
+      });
+      info.push({
+        label: this.translate("Active combo bolus start"),
+        value: new Date(basalValue.combobolustreatment.mills).toLocaleString(),
+      });
+      info.push({
+        label: this.translate("Active combo bolus duration"),
+        value:
+          parseInt(basalValue.combobolustreatment.duration ?? NaN) +
+          " " +
+          this.translate("mins"),
+      });
+      info.push({
+        label: this.translate("Active combo bolus remaining"),
+        value: remaining + " " + this.translate("mins"),
+      });
     }
 
-    sbx.pluginBase.updatePillText(basal, {
-      value: prop.display
-      , label: translate('BASAL')
-      , info: info
+    sbx.pluginBase.updatePillText(this, {
+      value: prop?.display,
+      label: this.translate("BASAL"),
+      info: info,
     });
+  }
 
-  };
+  /**
+   * @param {{ pwd?: { value?: { toString: () => string } } } | undefined} slots
+   * @param {import("../sandbox").ClientInitializedSandbox} sbx
+   * @protected
+   */
+  basalMessage(slots, sbx) {
+    if (!sbx.data.profile) return;
 
-  function basalMessage(slots, sbx) {
-        var basalValue = sbx.data.profile.getTempBasal(sbx.time);
-        var response = translate('virtAsstUnknown');
-        var pwd = slots?.pwd?.value;
-        var preamble = pwd ? translate('virtAsstPreamble3person', {
-            params: [
-                pwd
-            ]
-        }) : translate('virtAsstPreamble');
-        if (basalValue.treatment) {
-            var minutesLeft = dayjs(basalValue.treatment.endmills).from(dayjs(sbx.time));
-            response = translate('virtAsstBasalTemp', {
-                params: [
-                    preamble,
-                    basalValue.totalbasal,
-                    minutesLeft
-                ]
-            });
-        } else {
-            response = translate('virtAsstBasal', {
-                params: [
-                    preamble,
-                    basalValue.totalbasal
-                ]
-            });
-        }
-        return response;
+    const basalValue = sbx.data.profile.getTempBasal(sbx.time);
+    const pwd = slots?.pwd?.value;
+    const preamble = pwd
+      ? this.translate("virtAsstPreamble3person", {
+          params: [pwd.toString()],
+        })
+      : this.translate("virtAsstPreamble");
+
+    if (basalValue.treatment) {
+      const minutesLeft = this.dayjs(basalValue.treatment.endmills).from(
+        this.dayjs(sbx.time)
+      );
+      return this.translate("virtAsstBasalTemp", {
+        params: [preamble, basalValue.totalbasal.toString(), minutesLeft],
+      });
+    } else {
+      return this.translate("virtAsstBasal", {
+        params: [preamble, basalValue.totalbasal.toString()],
+      });
     }
-
-  function virtAsstRollupCurrentBasalHandler (slots, sbx, callback) {
-    callback(null, {results: basalMessage(slots, sbx), priority: 1});
   }
 
-  function virtAsstCurrentBasalhandler (next, slots, sbx) {
-    next(translate('virtAsstTitleCurrentBasal'), basalMessage(slots, sbx));
+  /**
+   * @type {import("../types").VirtAsstRollupHandlerFn}
+   * @protected
+   */
+  virtAsstRollupCurrentBasalHandler(slots, sbx, callback) {
+    callback(null, { results: this.basalMessage(slots, sbx), priority: 1 });
+  }
+  /**
+   * @type {import("../types").VirtAsstIntentHandlerFn}
+   * @protected
+   */
+  virtAsstCurrentBasalhandler(next, slots, sbx) {
+    next(
+      this.translate("virtAsstTitleCurrentBasal"),
+      this.basalMessage(slots, sbx) ?? ""
+    );
   }
 
-  basal.virtAsst = {
-    rollupHandlers: [{
-      rollupGroup: 'Status'
-      , rollupName: 'current basal'
-      , rollupHandler: virtAsstRollupCurrentBasalHandler
-    }],
-    intentHandlers: [{
-      intent: 'MetricNow'
-      , metrics: ['basal', 'current basal']
-      , intentHandler: virtAsstCurrentBasalhandler
-    }]
+  virtAsst = {
+    rollupHandlers: [
+      {
+        rollupGroup: "Status",
+        rollupName: "current basal",
+        rollupHandler: this.virtAsstRollupCurrentBasalHandler.bind(this),
+      },
+    ],
+    intentHandlers: [
+      {
+        intent: "MetricNow",
+        metrics: ["basal", "current basal"],
+        intentHandler: this.virtAsstCurrentBasalhandler.bind(this),
+      },
+    ],
   };
-
-  return basal;
 }
 
-module.exports = init;
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new BasalProfile(ctx);

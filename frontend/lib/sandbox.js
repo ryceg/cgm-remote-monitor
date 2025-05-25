@@ -1,302 +1,418 @@
-'use strict';
+"use strict";
 
-var units = require('./units')();
-var times = require('./times');
-var pick = require('./utils/pick');
-var cloneDeep = require('./utils/clone.js');
+const ddata = require("./data/ddata");
+const units = require("./units.js")();
+const times = require("./times");
 
-function init () {
-  var sbx = {};
+/** @typedef {Sandbox} Sbx */
+/**
+ * @typedef {Sandbox & {
+ *   notifications: ReturnType<
+ *     ReturnType<import("./sandbox")>["safeNotifications"]
+ *   >;
+ *   settings: ReturnType<import("./settings.js")>;
+ *   translate: ReturnType<import("./language")>["translate"];
+ *   levels: import("./levels");
+ * }} InitializedSandbox
+ */
 
-  function reset () {
-    sbx.properties = {};
+/**
+ * @typedef {InitializedSandbox & {
+ *   pluginBase: ReturnType<import("./plugins/pluginbase")>;
+ * }} ClientInitializedSandbox
+ */
+
+/**
+ * @typedef {Record<string, any> & {
+ *   delta?: import("./plugins/bgnow").DeltaProperties;
+ *   bgnow?: import("./plugins/bgnow").BGNowProperties;
+ *   buckets?: import("./plugins/bgnow").BucketsProperties;
+ *   ar2?: import("./plugins/ar2").Ar2Properties;
+ *   direction?: import("./plugins/direction").DirectionProperties;
+ *   rawbg?: import("./plugins/rawbg").RawBgProperties;
+ *   iob?: import("./plugins/iob").IobProperties;
+ *   cob?: import("./plugins/cob.js").CobProperties;
+ *   basal?: import("./plugins/basalprofile.js").BasalProperties;
+ *   bage?: import("./plugins/batteryage.js").BageProperties;
+ *   bwp?: import("./plugins/boluswizardpreview.js").BWPProperties;
+ *   cage?: import("./plugins/cannulaage.js").CAgeProperties;
+ *   dbsize?: import("./plugins/dbsize.js").DbSizeProperties;
+ *   iage?: import("./plugins/insulinage.js").IAgeProperties;
+ *   loop?: import("./plugins/loop.js").LoopProperties;
+ *   openaps?: import("./plugins/openaps.js").OpenApsProperties;
+ *   pump?: import("./plugins/pump.js").PumpProperties;
+ *   runtimestate?: import("./plugins/runtimestate.js").RuntimeStateProperties;
+ *   sage?: import("./plugins/sensorage.js").SAgeProperties;
+ *   upbat?: import("./plugins/upbat.js").UpBatProperties;
+ *   sensorState?: import("./plugins/xdripjs.js").SensorStateProperties
+ * }} SandboxProperties
+ */
+
+class Sandbox {
+  /**
+   * @type {undefined | ReturnType<import("./settings")>["extendedSettings"] }
+   */
+  #allExtendedSettings;
+
+  constructor() {
+    this.time = Date.now();
+    /** @type {SandboxProperties} */
+    this.properties = {};
+    /** @type {Record<string, any>} */
+    this.extendedSettings = {};
+    this.settings = /** @type {ReturnType<import("./settings")>} */ ({});
+    this.data = /** @type {ReturnType<import("./data/ddata")>} */ ({});
   }
 
-  function extend () {
-    sbx.unitsLabel = unitsLabel();
-    sbx.data = sbx.data || {};
+  reset() {
+    this.properties = {};
+  }
+
+  extend() {
+    this.unitsLabel = this.settings.units === "mmol" ? "mmol/L" : "mg/dl";
+    this.data ??= /** @type {ReturnType<import("./data/ddata")>} */ ({});
+
     //default to prevent adding checks everywhere
-    sbx.extendedSettings = { empty: true };
+    this.extendedSettings = { empty: true };
   }
-  function withExtendedSettings (plugin, allExtendedSettings, sbx) {
-    var sbx2 = Object.assign({}, sbx);
-    sbx2.extendedSettings = allExtendedSettings && allExtendedSettings[plugin.name] || {};
-    return sbx2;
+
+  /** @param {{ name: string }} plugin */
+  withExtendedSettings(plugin) {
+    if (!this.#allExtendedSettings) {
+      throw new Error("withExtendedSettings called on unitinialized sandbox");
+    }
+
+    const cloned = Object.assign(
+      /** @type {Sandbox} */ (Object.create(Object.getPrototypeOf(this))),
+      this
+    );
+
+    cloned.extendedSettings = this.#allExtendedSettings?.[plugin.name] ?? {};
+
+    return cloned;
   }
 
   /**
    * A view into the safe notification functions for plugins
    *
-   * @param {Object} ctx - Context object
-   * @returns  {{notification}}
+   * @param {{ notifications: ReturnType<import("./notifications.js")> }} ctx
+   * @returns {Pick<
+   *   ReturnType<import("./notifications.js")>,
+   *   "requestNotify" | "requestSnooze"
+   * >}
    */
-  function safeNotifications (ctx) {
-    // Ensure ctx.notifications exists before trying to pick from it
-    return pick(ctx?.notifications, ['requestNotify', 'requestSnooze', 'requestClear']);
+  safeNotifications(ctx) {
+    if (!ctx.notifications) {
+      // some of the tests don't pass `notifications` to `sbx.{client,server}Init`
+      // Previously, this was `_.pick(ctx.notifications, [ ... ])`, which would return {} here
+      return { requestNotify: () => null, requestSnooze: () => null };
+    }
+    return {
+      // requestNotify: ctx.notifications.requestNotify.bind(ctx.notifications),
+      requestNotify: ctx.notifications.requestNotify,
+      // requestSnooze: ctx.notifications.requestSnooze.bind(ctx.notifications),
+      requestSnooze: ctx.notifications.requestSnooze,
+    };
   }
 
   /**
-   * Initialize the sandbox using server state
-   *
-   * @param env - .js
-   * @param ctx - created from bootevent
-   * @returns {{sbx}}
+   * @typedef ServerEnv
+   * @property {ReturnType<import("./settings")>} settings
+   * @property {Record<string, any>} extendedSettings
    */
-  sbx.serverInit = function serverInit (env, ctx) {
-    reset();
+  /**
+   * @typedef ServerCtx
+   * @property {import("./levels")} levels
+   * @property {ReturnType<import("./language")>} language
+   * @property {ReturnType<import("./data/ddata")>} ddata
+   * @property {string} runtimeState
+   * @property {ReturnType<import("./notifications")>} notifications
+   * @property {import("moment-timezone")} moment
+   */
+  /**
+   * @param {ServerEnv} env
+   * @param {ServerCtx} ctx
+   * @returns {InitializedSandbox}
+   */
+  serverInit(env, ctx) {
+    this.reset();
 
-    sbx.runtimeEnvironment = 'server';
-    sbx.runtimeState = ctx.runtimeState;
-    sbx.time = Date.now();
-    sbx.settings = env.settings;
-    sbx.data = ctx.ddata.clone();
-    sbx.notifications = safeNotifications(ctx);
+    this.runtimeEnvironment = "server";
+    this.runtimeState = ctx.runtimeState;
+    this.time = Date.now();
+    this.settings = env.settings;
+    this.data = ctx.ddata.clone();
+    this.notifications = this.safeNotifications(ctx);
 
-    sbx.levels = ctx.levels;
-    sbx.language = ctx.language;
-    sbx.translate = ctx.language.translate;
-    var profile = require('./profilefunctions')(null, ctx);
-    //Plugins will expect the right profile based on time - deep clone to avoid modifying original data
-    profile.loadData(cloneDeep(ctx.ddata.profiles));
-    profile.updateTreatments(ctx.ddata.profileTreatments, ctx.ddata.tempbasalTreatments, ctx.ddata.combobolusTreatments);
-    sbx.data.profile = profile;
-    delete sbx.data.profiles;
+    this.levels = ctx.levels;
+    this.language = ctx.language;
+    this.translate = ctx.language.translate;
 
-    sbx.properties = {};
+    const profile = require("./profilefunctions")(null, ctx);
+    //Plugins will expect the right profile based on time
+    profile.loadData(structuredClone(ctx.ddata.profiles));
+    profile.updateTreatments(
+      ctx.ddata.profileTreatments,
+      ctx.ddata.tempbasalTreatments,
+      ctx.ddata.combobolusTreatments
+    );
+    this.data.profile = profile;
+    /** @ts-ignore */
+    delete this.data.profiles;
 
-    sbx.withExtendedSettings = function getPluginExtendedSettingsOnly (plugin) {
-      return withExtendedSettings(plugin, env.extendedSettings, sbx);
-    };
+    this.properties = {};
 
-    extend();
+    this.#allExtendedSettings = env.extendedSettings;
 
-    return sbx;
-  };
+    this.extend();
 
+    return /** @type {InitializedSandbox} */ (this);
+  }
+
+  /**
+   * @typedef ClientInitCtx
+   * @property {ReturnType<import("./settings")>} settings
+   * @property {ReturnType<import("./plugins/pluginbase")>} pluginBase
+   * @property {ReturnType<import("./notifications")>} notifications
+   * @property {import("./levels")} levels
+   * @property {ReturnType<import("./language")>} language
+   */
   /**
    * Initialize the sandbox using client state
    *
-   * @param settings - specific settings from the client, starting with the defaults
-   * @param time - could be a retro time
-   * @param pluginBase - used by visualization plugins to update the UI
-   * @param data - svgs, treatments, profile, etc
-   * @returns {{sbx}}
+   * @param {ClientInitCtx} ctx - Specific settings from the client, starting
+   *   with the defaults
+   * @param {number} time - Could be a retro time
+   * @param {ReturnType<import("./data/ddata")>} data - Svgs, treatments,
+   *   profile, etc
+   * @returns {ClientInitializedSandbox}
    */
-  sbx.clientInit = function clientInit (ctx, time, data) {
-    reset();
+  clientInit(ctx, time, data = ddata()) {
+    this.reset();
 
-    sbx.runtimeEnvironment = 'client';
-    sbx.settings = ctx.settings;
-    sbx.showPlugins = ctx.settings.showPlugins;
-    sbx.time = time;
-    sbx.data = data;
-    sbx.pluginBase = ctx.pluginBase;
-    sbx.notifications = safeNotifications(ctx);
+    this.runtimeEnvironment = "client";
+    this.settings = ctx.settings;
+    this.showPlugins = ctx.settings.showPlugins;
+    this.time = time;
+    this.data = data;
+    this.pluginBase = ctx.pluginBase;
+    this.notifications = this.safeNotifications(ctx);
 
-    sbx.levels = ctx.levels;
-    sbx.language = ctx.language;
-    sbx.translate = ctx.language.translate;
+    this.levels = ctx.levels;
+    this.language = ctx.language;
+    this.translate = ctx.language.translate;
 
-    if (sbx.pluginBase) {
-      sbx.pluginBase.forecastInfos = [];
-      sbx.pluginBase.forecastPoints = {};
+    if (this.pluginBase) {
+      this.pluginBase.forecastInfos = [];
+      this.pluginBase.forecastPoints = {};
     }
 
-    sbx.extendedSettings = { empty: true };
-    sbx.withExtendedSettings = function getPluginExtendedSettingsOnly (plugin) {
-      return withExtendedSettings(plugin, sbx.settings.extendedSettings, sbx);
-    };
+    this.extendedSettings = { empty: true };
+    this.#allExtendedSettings = this.settings.extendedSettings;
 
-    extend();
+    this.extend();
 
-    return sbx;
-  };
+    return /** @type {ClientInitializedSandbox} */ (this);
+  }
 
   /**
-   * Properties are immutable, first plugin to set it wins, plugins should be in the correct order
+   * Properties are immutable, first plugin to set it wins, plugins should be in
+   * the correct order
    *
-   * @param name
-   * @param setter
+   * @template {keyof Sandbox["properties"]} T
+   * @param {T} name
+   * @param {() => Sandbox["properties"][T]} setter
    */
-  sbx.offerProperty = function offerProperty (name, setter) {
-    if (!Object.keys(sbx.properties).includes(name)) {
-      var value = setter();
+  offerProperty(name, setter) {
+    if (!Object.keys(this.properties).includes(name)) {
+      const value = setter();
       if (value) {
-        sbx.properties[name] = value;
+        this.properties[name] = value;
       }
     }
-  };
+  }
 
-  sbx.isCurrent = function isCurrent (entry) {
-    return entry && sbx.time - entry.mills <= times.mins(15).msecs;
-  };
-  sbx.lastEntry = function lastEntry (entries) {
-    return entries?.slice().reverse().find(function notInTheFuture (entry) {
-      return sbx.entryMills(entry) <= sbx.time;
-    });
-  };
+  /** @param {import("./types.js").Entry} [entry] */
+  isCurrent(entry) {
+    return entry && this.time - entry.mills <= times.mins(15).msecs;
+  }
 
-  sbx.lastNEntries = function lastNEntries (entries = [], n) {
-    var lastN = [];
-    // Process entries from newest to oldest until we have n entries
-    for (let i = entries.length - 1; i >= 0 && lastN.length < n; i--) {
-      const entry = entries[i];
-      if (sbx.entryMills(entry) <= sbx.time) {
-      lastN.push(entry);
-      }
-    }
+  /** @template {{mills: number}} T @param {T[]} [entries] */
+  lastEntry(entries) {
+    return entries
+      ?.slice()
+      .reverse()
+      .find((entry) => this.entryMills(entry) <= this.time);
+  }
 
-    lastN.reverse();
-
-    return lastN;
-  };
   /**
-   * Get the previous entry from the provided array
-   * @param {Array} entries - The entries to search
-   * @returns {Object|undefined} The previous entry or undefined if not available
+   * @template {import("./types").Entry} T
+   * @param {T[]} entries
+   * @param {number} n
    */
-  sbx.prevEntry = function prevEntry (entries = []) {
-    var last2 = sbx.lastNEntries(entries, 2);
-    return last2?.[0];
-  };
+  lastNEntries(entries, n) {
+    return entries
+      .filter((entry) => this.entryMills(entry) <= this.time)
+      .slice(-n)
+      .reverse();
+  }
 
-  sbx.prevSGVEntry = function prevSGVEntry () {
-    return sbx.prevEntry(sbx.data.sgvs);
-  };
+  /** @template {import("./types").Entry} T @param {T[]} entries */
+  prevEntry(entries) {
+    const last2 = this.lastNEntries(entries, 2);
+    return last2.at(0);
+  }
 
-  sbx.lastSGVEntry = function lastSGVEntry () {
-    return sbx.lastEntry(sbx.data.sgvs);
-  };
+  prevSGVEntry() {
+    return this.lastEntry(this.data.sgvs);
+  }
 
-  sbx.lastSGVMgdl = function lastSGVMgdl () {
-    var last = sbx.lastSGVEntry();
+  lastSGVEntry() {
+    return this.lastEntry(this.data.sgvs);
+  }
+
+  lastSGVMgdl() {
+    const last = this.lastSGVEntry();
     return last && last.mgdl;
-  };
+  }
 
-  sbx.lastSGVMills = function lastSGVMills () {
-    return sbx.entryMills(sbx.lastSGVEntry());
-  };
+  lastSGVMills() {
+    return this.entryMills(this.lastSGVEntry());
+  }
 
-  sbx.entryMills = function entryMills (entry) {
-    return entry && entry.mills;
-  };
+  /** @param {{mills: number}} [entry] */
+  entryMills(entry) {
+    // JHL: NaN is falsy, but counts as a `number`, so this narrows the return type.
+    // Before, it would return undefined, which when used for comparison behaves the same as NaN
+    return entry?.mills ?? NaN;
+  }
 
-  sbx.lastScaledSGV = function lastScaledSVG () {
-    return sbx.scaleEntry(sbx.lastSGVEntry());
-  };
+  lastScaledSGV() {
+    const lastEntry = this.lastSGVEntry();
+    // JHL: NaN
+    if (!lastEntry) return NaN;
+    return this.scaleEntry(lastEntry);
+  }
 
-  sbx.lastDisplaySVG = function lastDisplaySVG () {
-    return sbx.displayBg(sbx.lastSGVEntry());
-  };
+  lastDisplaySVG() {
+    const lastEntry = this.lastSGVEntry();
+    // JHL: NaN
+    if (!lastEntry) return NaN;
+    return this.displayBg(lastEntry);
+  }
 
-  sbx.buildBGNowLine = function buildBGNowLine () {
-    var line = 'BG Now: ' + sbx.lastDisplaySVG();
+  buildBGNowLine() {
+    let line = "BG Now: " + this.lastDisplaySVG();
 
-    var delta = sbx.properties.delta && sbx.properties.delta.display;
-    if (delta) {
-      line += ' ' + delta;
-    }
+    const delta = this.properties.delta && this.properties.delta.display;
+    if (delta) line += " " + delta;
 
-    var direction = sbx.properties.direction && sbx.properties.direction.label;
-    if (direction) {
-      line += ' ' + direction;
-    }
+    const direction = this.properties.direction?.label;
+    if (direction) line += " " + direction;
 
-    line += ' ' + sbx.unitsLabel;
+    line += " " + this.unitsLabel;
 
     return line;
-  };
+  }
 
-  sbx.propertyLine = function propertyLine (propertyName) {
-    return sbx.properties[propertyName] && sbx.properties[propertyName].displayLine;
-  };
+  /**
+   * @template {keyof Sandbox["properties"]} T
+   * @param {T} propertyName
+   * @returns {Sandbox["properties"][T]["displayLine"]}
+   */
+  propertyLine(propertyName) {
+    return (
+      this.properties[propertyName] && this.properties[propertyName].displayLine
+    );
+  }
 
-  sbx.appendPropertyLine = function appendPropertyLine (propertyName, lines) {
+  /**
+   * @template {keyof Sandbox["properties"]} T
+   * @param {T} propertyName
+   * @param {(string | Sandbox["properties"][T]["displayLine"])[]} lines
+   */
+  appendPropertyLine(propertyName, lines) {
     lines = lines || [];
 
-    var displayLine = sbx.propertyLine(propertyName);
+    const displayLine = this.propertyLine(propertyName);
     if (displayLine) {
       lines.push(displayLine);
     }
 
     return lines;
-  };
+  }
 
-  sbx.prepareDefaultLines = function prepareDefaultLines () {
-    var lines = [sbx.buildBGNowLine()];
-    sbx.appendPropertyLine('rawbg', lines);
-    sbx.appendPropertyLine('ar2', lines);
-    sbx.appendPropertyLine('bwp', lines);
-    sbx.appendPropertyLine('iob', lines);
-    sbx.appendPropertyLine('cob', lines);
+  prepareDefaultLines() {
+    return [
+      this.buildBGNowLine(),
+      this.propertyLine("rawbg"),
+      this.propertyLine("ar2"),
+      this.propertyLine("bwp"),
+      this.propertyLine("iob"),
+      this.propertyLine("cob"),
+    ].filter(Boolean);
+  }
 
-    return lines;
-  };
+  buildDefaultMessage() {
+    return this.prepareDefaultLines().join("\n");
+  }
 
-  sbx.buildDefaultMessage = function buildDefaultMessage () {
-    return sbx.prepareDefaultLines().join('\n');
-  };
-
-  sbx.displayBg = function displayBg (entry) {
+  /** @param {import("./types.js").Entry} entry */
+  displayBg(entry) {
     if (Number(entry.mgdl) === 39) {
-      return 'LOW';
+      return "LOW";
     } else if (Number(entry.mgdl) === 401) {
-      return 'HIGH';
+      return "HIGH";
     } else {
-      return sbx.scaleEntry(entry);
+      return this.scaleEntry(entry);
     }
-  };
+  }
 
-  sbx.scaleEntry = function scaleEntry (entry) {
-
+  /** @param {Pick<import("./types.js").Entry, "mgdl" | "mmol" | "scaled">} [entry] */
+  scaleEntry(entry) {
     if (entry && entry.scaled === undefined) {
-      if (sbx.settings.units === 'mmol') {
-        entry.scaled = entry.mmol || units.mgdlToMMOL(entry.mgdl);
+      if (this.settings.units === "mmol") {
+        entry.scaled = entry.mmol || units.mgdlToMMOL(entry.mgdl ?? NaN);
       } else {
-        entry.scaled = entry.mgdl || units.mmolToMgdl(entry.mmol);
+        entry.scaled = entry.mgdl || units.mmolToMgdl(entry.mmol ?? NaN);
       }
     }
 
-    return entry && Number(entry.scaled);
-  };
+    // JHL: NaN
+    return (entry && Number(entry.scaled)) ?? NaN;
+  }
 
-  sbx.scaleMgdl = function scaleMgdl (mgdl) {
-    if (sbx.settings.units === 'mmol' && mgdl) {
-      return Number(units.mgdlToMMOL(mgdl));
+  /** @param {number | string} mgdl */
+  scaleMgdl(mgdl) {
+    if (this.settings.units === "mmol" && mgdl) {
+      return Number(units.mgdlToMMOL(Number(mgdl)));
     } else {
       return Number(mgdl);
     }
-  };
+  }
 
-  sbx.roundInsulinForDisplayFormat = function roundInsulinForDisplayFormat (insulin) {
-
+  /** @param {number} insulin */
+  roundInsulinForDisplayFormat(insulin) {
     if (insulin === 0) {
-      return '0';
+      return "0";
     }
 
-    if (sbx.properties.roundingStyle === 'medtronic') {
-      var denominator = 0.1;
-      var digits = 1;
-      if (insulin <= 0.5) {
-        denominator = 0.05;
-        digits = 2;
-      }
+    if (this.properties.roundingStyle === "medtronic") {
+      const denominator = insulin <= 0.5 ? 0.05 : 0.1;
+      const digits = insulin <= 0.5 ? 2 : 1;
+
       return (Math.floor(insulin / denominator) * denominator).toFixed(digits);
     }
 
     return (Math.floor(insulin / 0.01) * 0.01).toFixed(2);
-
-  };
-
-  function unitsLabel () {
-    return sbx.settings.units === 'mmol' ? 'mmol/L' : 'mg/dl';
   }
 
-  sbx.roundBGToDisplayFormat = function roundBGToDisplayFormat (bg) {
-    return sbx.settings.units === 'mmol' ? Math.round(bg * 10) / 10 : Math.round(bg);
-  };
-
-  return sbx;
+  /** @param {number} bg */
+  roundBGToDisplayFormat(bg) {
+    return this.settings.units === "mmol"
+      ? Math.round(bg * 10) / 10
+      : Math.round(bg);
+  }
 }
 
-module.exports = init;
+module.exports = () => new Sandbox();

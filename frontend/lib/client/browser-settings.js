@@ -1,356 +1,506 @@
-'use strict';
+"use strict";
 
 // VERSION 1 - 0.9.0 - 2015-Nov-07 - initial version
-var STORAGE_VERSION = 1;
-var Storages = require('js-storage');
+const STORAGE_VERSION = 1;
+const Storages = require("js-storage");
 
-function init (client, serverSettings, $) {
+const Settings = require("../settings");
 
-  serverSettings = serverSettings || { settings: {} };
+/**
+ * @typedef ServerSettings
+ * @property {ReturnType<import("../settings")>} settings
+ * @property {ReturnType<import("../settings")>["extendedSettings"]} extendedSettings
+ */
+class BrowserSettings {
+  /**
+   * @param {import(".")} client
+   * @param {ServerSettings} serverSettings
+   * @param {JQueryStatic} $
+   */
+  constructor(client, serverSettings, $) {
+    this.client = client;
+    /** @type {ServerSettings} */
+    this.serverSettings =
+      serverSettings ??
+      /** @type {ServerSettings} */ ({
+        settings: {},
+        extendedSettings: {},
+      });
 
-  var storage = Storages.localStorage;
-  var settings = require('../settings')();
+    this.$ = $;
 
-  function updateBolusRender () {
-    var bolusSettings = client.settings.extendedSettings.bolus || {};
+    this.storage = Storages.localStorage;
 
-    var allRenderOverOptions = [5, 1, 0.5, 0.1];
-    if (typeof bolusSettings.renderOver === 'number' && bolusSettings.renderOver > 0 && bolusSettings.renderOver < Number.MAX_SAFE_INTEGER) {
-      allRenderOverOptions.push(Number(bolusSettings.renderOver));
+    this.settings = Settings();
+    this.#populateSettings();
+  }
+
+  loadAndWireForm() {
+    this.#loadForm();
+    this.#wireForm();
+  }
+
+  /** @param {import(".")} client */
+  loadPluginSettings(client) {
+    client.plugins.eachEnabledPlugin(
+      /** @param {import("../types").Plugin} plugin */
+      (plugin) => {
+        if (!plugin.getClientPrefs) return;
+
+        const settingsBase = this.settings.extendedSettings[plugin.name] ?? {};
+
+        plugin.getClientPrefs().forEach((p) => {
+          const id = `${plugin.name}-${p.id}`;
+          const stored = this.storage.get(id);
+
+          if (stored !== null) settingsBase[p.id] = stored;
+        });
+      }
+    );
+  }
+
+  #populateSettings() {
+    this.settings.extendedSettings = this.serverSettings.extendedSettings;
+
+    try {
+      this.settings.eachSetting((name) => {
+        // ignore the `name`s from `settings.thresholds`
+        if (name.startsWith("bg")) return;
+
+        const stored = this.storage.get(name);
+        return stored !== undefined && stored !== null
+          ? stored
+          : this.serverSettings.settings[name];
+      });
+
+      if (this.serverSettings.settings.thresholds) {
+        this.settings.thresholds = this.serverSettings.settings.thresholds;
+      }
+
+      if (this.serverSettings.settings.enable) {
+        this.settings.enable = this.serverSettings.settings.enable;
+      }
+
+      if (!this.settings.enable.includes("ar2")) {
+        this.settings.enable.push("ar2");
+      }
+      this.#handleStorageVersions();
+      if (!this.settings.extendedSettings.basal) {
+        this.settings.extendedSettings.basal = {};
+      }
+
+      const basalStored = this.storage.get("basalrender");
+      this.settings.extendedSettings.basal.render =
+        basalStored !== null
+          ? basalStored
+          : this.settings.extendedSettings.basal.render;
+
+      if (!this.settings.extendedSettings.bolus) {
+        this.settings.extendedSettings.bolus = {
+          renderOver: 0,
+          renderFormat: "default",
+          renderFormatSmall: "default",
+        };
+      }
+
+      const bolusStored = this.storage.get("bolus");
+      if (!this.#isBolusSettings(bolusStored)) {
+        throw new Error(
+          "Bolus settings from localStorage invalid - please clear your localStorage"
+        );
+      }
+      this.settings.extendedSettings.bolus.renderOver =
+        bolusStored !== null
+          ? Number(bolusStored.renderOver)
+          : this.settings.extendedSettings.bolus.renderOver;
+      this.settings.extendedSettings.bolus.renderFormat =
+        bolusStored !== null
+          ? bolusStored.renderFormat
+          : this.settings.extendedSettings.bolus.renderFormat;
+      this.settings.extendedSettings.bolus.renderFormatSmall =
+        bolusStored !== null
+          ? bolusStored.renderFormatSmall
+          : this.settings.extendedSettings.bolus.renderFormatSmall;
+    } catch (err) {
+      console.error(err);
+      this.#showLocalstorageError();
     }
-    var sortedRenderOverOptions = Array.from(new Set(allRenderOverOptions)).sort().reverse();
+  }
 
-    sortedRenderOverOptions.forEach(function (optionValue) {
-      $('#bolusRenderOver').append(
-        $('<option></option>')
-          .attr('value', optionValue)
-          .text(client.translate('%1 U and Over', { params: [optionValue] }))
+  /**
+   * @param {unknown} data @returns {data is null | Record<`render${"Over" |
+   *   "Format" | "FormatSmall"}`, any>}
+   */
+  #isBolusSettings(data) {
+    if (data === null) return true;
+    if (typeof data !== "object") return false;
+
+    if (!("renderOver" in data)) return false;
+    if (!("renderFormat" in data)) return false;
+    if (!("renderFormatSmall" in data)) return false;
+
+    return true;
+  }
+
+  #updateBolusRender() {
+    const $ = this.$;
+    const bolusSettings = this.client.settings.extendedSettings.bolus || {};
+
+    const allRenderOverOptions = new Set([5, 1, 0.5, 0.1]);
+    const renderOver = Number(bolusSettings.renderOver);
+    if (
+      typeof renderOver === "number" &&
+      renderOver > 0 &&
+      renderOver < Number.MAX_SAFE_INTEGER
+    ) {
+      allRenderOverOptions.add(renderOver);
+    }
+    const sortedRenderOverOptions = Array.from(allRenderOverOptions).toSorted(
+      (a, b) => b - a // sort largest to smallest
+    );
+
+    sortedRenderOverOptions.forEach((optionValue) => {
+      $("#bolusRenderOver").append(
+        $("<option></option>")
+          .attr("value", optionValue)
+          .text(
+            this.client.translate("%1 U and Over", {
+              params: [optionValue.toString()],
+            })
+          )
       );
     });
 
-    $('#bolusRenderOver').val(String(bolusSettings.renderOver || 0.5));
-    $('#bolusRenderFormat').val(bolusSettings.renderFormat ? bolusSettings.renderFormat : 'default');
-    $('#bolusRenderFormatSmall').val(bolusSettings.renderFormatSmall ? bolusSettings.renderFormatSmall : 'default');
-
+    $("#bolusRenderOver").val(String(bolusSettings.renderOver || 0.5));
+    $("#bolusRenderFormat").val(bolusSettings.renderFormat ?? "default");
+    $("#bolusRenderFormatSmall").val(
+      bolusSettings.renderFormatSmall ?? "default"
+    );
   }
 
-  function loadForm () {
-    var utils = client.utils;
-    var language = client.language;
-    var translate = language.translate;
+  #loadForm() {
+    const $ = this.$;
+    const utils = this.client.utils;
+    /** @type {ReturnType<import("../language")>} */
+    const language = this.client.language;
+    const translate = language.translate;
 
-    function appendThresholdValue (threshold) {
-      return settings.alarmTypes.indexOf('simple') === -1 ? '' : ' (' + utils.scaleMgdl(threshold) + ')';
+    const that = this;
+    /** @param {number} threshold */
+    function appendThresholdValue(threshold) {
+      return that.settings.alarmTypes?.includes("simple")
+        ? ""
+        : " (" + utils.scaleMgdl(threshold) + ")";
     }
 
-    if (settings.units === 'mmol') {
-      $('#mmol-browser').prop('checked', true);
+    if (this.settings.units === "mmol") {
+      $("#mmol-browser").prop("checked", true);
     } else {
-      $('#mgdl-browser').prop('checked', true);
+      $("#mgdl-browser").prop("checked", true);
     }
-    $('#alarm-urgenthigh-browser').prop('checked', settings.alarmUrgentHigh).next().text(translate('Urgent High Alarm') + appendThresholdValue(settings.thresholds.bgHigh));
-    $('#alarm-high-browser').prop('checked', settings.alarmHigh).next().text(translate('High Alarm') + appendThresholdValue(settings.thresholds.bgTargetTop));
-    $('#alarm-low-browser').prop('checked', settings.alarmLow).next().text(translate('Low Alarm') + appendThresholdValue(settings.thresholds.bgTargetBottom));
-    $('#alarm-urgentlow-browser').prop('checked', settings.alarmUrgentLow).next().text(translate('Urgent Low Alarm') + appendThresholdValue(settings.thresholds.bgLow));
-    $('#alarm-timeagowarn-browser').prop('checked', settings.alarmTimeagoWarn);
-    $('#alarm-timeagowarnmins-browser').val(settings.alarmTimeagoWarnMins);
-    $('#alarm-timeagourgent-browser').prop('checked', settings.alarmTimeagoUrgent);
-    $('#alarm-timeagourgentmins-browser').val(settings.alarmTimeagoUrgentMins);
-    $('#alarm-pumpbatterylow-browser').prop('checked', settings.alarmPumpBatteryLow);
+    $("#alarm-urgenthigh-browser")
+      .prop("checked", this.settings.alarmUrgentHigh)
+      .next()
+      .text(
+        translate("Urgent High Alarm") +
+          appendThresholdValue(this.settings.thresholds.bgHigh)
+      );
+    $("#alarm-high-browser")
+      .prop("checked", this.settings.alarmHigh)
+      .next()
+      .text(
+        translate("High Alarm") +
+          appendThresholdValue(this.settings.thresholds.bgTargetTop)
+      );
+    $("#alarm-low-browser")
+      .prop("checked", this.settings.alarmLow)
+      .next()
+      .text(
+        translate("Low Alarm") +
+          appendThresholdValue(this.settings.thresholds.bgTargetBottom)
+      );
+    $("#alarm-urgentlow-browser")
+      .prop("checked", this.settings.alarmUrgentLow)
+      .next()
+      .text(
+        translate("Urgent Low Alarm") +
+          appendThresholdValue(this.settings.thresholds.bgLow)
+      );
+    $("#alarm-timeagowarn-browser").prop(
+      "checked",
+      this.settings.alarmTimeagoWarn
+    );
+    $("#alarm-timeagowarnmins-browser").val(this.settings.alarmTimeagoWarnMins);
+    $("#alarm-timeagourgent-browser").prop(
+      "checked",
+      this.settings.alarmTimeagoUrgent
+    );
+    $("#alarm-timeagourgentmins-browser").val(
+      this.settings.alarmTimeagoUrgentMins
+    );
+    $("#alarm-pumpbatterylow-browser").prop(
+      "checked",
+      this.settings.alarmPumpBatteryLow
+    );
 
-    $('#nightmode-browser').prop('checked', settings.nightMode);
-    $('#editmode-browser').prop('checked', settings.editMode);
+    $("#nightmode-browser").prop("checked", this.settings.nightMode);
+    $("#editmode-browser").prop("checked", this.settings.editMode);
 
-    if (settings.isEnabled('rawbg')) {
-      $('#show-rawbg-option').show();
-      $('#show-rawbg-' + settings.showRawbg).prop('checked', true);
+    if (this.settings.isEnabled("rawbg")) {
+      $("#show-rawbg-option").show();
+      $("#show-rawbg-" + this.settings.showRawbg).prop("checked", true);
     } else {
-      $('#show-rawbg-option').hide();
+      $("#show-rawbg-option").hide();
     }
 
-    $('h1.customTitle').text(settings.customTitle);
-    $('input#customTitle').prop('value', settings.customTitle);
+    $("h1.customTitle").text(this.settings.customTitle);
+    $("input#customTitle").prop("value", this.settings.customTitle);
 
-    if (settings.theme === 'colors') {
-      $('#theme-colors-browser').prop('checked', true);
-    } else if (settings.theme === 'colorblindfriendly') {
-      $('#theme-colorblindfriendly-browser').prop('checked', true);
+    if (this.settings.theme === "colors") {
+      $("#theme-colors-browser").prop("checked", true);
+    } else if (this.settings.theme === "colorblindfriendly") {
+      $("#theme-colorblindfriendly-browser").prop("checked", true);
     } else {
-      $('#theme-default-browser').prop('checked', true);
+      $("#theme-default-browser").prop("checked", true);
     }
-    var langSelect = $('#language');
 
-    language.languages?.forEach(function eachLanguage (lang) {
-      langSelect.append('<option value="' + lang.code + '">' + lang.language + '</option>');
+    const langSelect = $("#language");
+
+    language.languages.forEach((lang) => {
+      langSelect.append(
+        `<option value="${lang.code}">${lang.language}</option>`
+      );
     });
 
-    langSelect.val(settings.language);
+    langSelect.val(this.settings.language);
 
-    $('#scaleY').val(settings.scaleY);
+    $("#scaleY").val(this.settings.scaleY);
 
-    $('#basalrender').val(settings.extendedSettings.basal ? settings.extendedSettings.basal.render : 'none');
+    $("#basalrender").val(
+      this.settings.extendedSettings.basal
+        ? this.settings.extendedSettings.basal.render
+        : "none"
+    );
 
-    updateBolusRender();
+    this.#updateBolusRender();
 
-    if (settings.timeFormat === 24) {
-      $('#24-browser').prop('checked', true);
+    if (this.settings.timeFormat === 24) {
+      $("#24-browser").prop("checked", true);
     } else {
-      $('#12-browser').prop('checked', true);
+      $("#12-browser").prop("checked", true);
     }
 
-    var showPluginsSettings = $('#show-plugins');
-    var hasPluginsToShow = false;
+    const showPluginsSettings = $("#show-plugins");
+    let hasPluginsToShow = false;
 
+    /**
+     * @type {{
+     *   plugin: import("../types").Plugin;
+     *   prefs: import("../types").PluginClientPrefs[];
+     * }[]}
+     */
     const pluginPrefs = [];
 
-    client.plugins.eachEnabledPlugin(function each (plugin) {
-      if (client.plugins.specialPlugins.indexOf(plugin.name) > -1) {
-        //ignore these, they are always on for now
-      } else {
-        var id = 'plugin-' + plugin.name;
-        var dd = $('<dd><input type="checkbox" id="' + id + '" value="' + plugin.name + '"/><label for="' + id + '">' + translate(plugin.label || plugin.name) + '</label></dd>');
-        showPluginsSettings.append(dd);
-        dd.find('input').prop('checked', settings.showPlugins.indexOf(plugin.name) > -1);
-        hasPluginsToShow = true;
-      }
+    this.client.plugins.eachEnabledPlugin(
+      /** @param {import("../types").Plugin} plugin */
+      (plugin) => {
+        if (this.client.plugins.specialPlugins.includes(plugin.name)) {
+          //ignore these, they are always on for now
+        } else {
+          const id = "plugin-" + plugin.name;
+          const untranslatedLabel = plugin.label || plugin.name;
+          const label = this.client.language.isTranslationKey(untranslatedLabel)
+            ? translate(untranslatedLabel)
+            : untranslatedLabel;
 
-      if (plugin.getClientPrefs) {
-        const prefs = plugin.getClientPrefs();
-        pluginPrefs.push({
-          plugin
-          , prefs
-        })
+          const dd = $(
+            `<dd>
+            <input type="checkbox" id="${id}" value="${plugin.name}" />
+            <label for="${id}">${label}</label>
+          </dd>`
+          );
+          showPluginsSettings.append(dd);
+
+          dd.find("input").prop(
+            "checked",
+            this.settings.showPlugins.includes(plugin.name)
+          );
+
+          hasPluginsToShow = true;
+        }
+
+        if (plugin.getClientPrefs) {
+          const prefs = plugin.getClientPrefs();
+          pluginPrefs.push({
+            plugin,
+            prefs,
+          });
+        }
       }
-    });
+    );
 
     showPluginsSettings.toggle(hasPluginsToShow);
 
-    const bs = $('#browserSettings');
+    const bs = $("#browserSettings");
+    /** @type {string[]} */
     const toggleCheckboxes = [];
 
-    if (pluginPrefs.length > 0) {
-      pluginPrefs.forEach(function(e) {
-        // Only show settings if plugin is visible
-        if (settings.showPlugins.indexOf(e.plugin.name) > -1) {
-          const label = e.plugin.label;
-          const dl = $('<dl>');
-          dl.append(`<dt>` + translate(label) + `</dt>`);
-          e.prefs.forEach(function(p) {
-            const id = e.plugin.name + "-" + p.id;
-            const label = p.label;
-            if (p.type == 'boolean') {
-              const html = $(`<dd><input type="checkbox" id="${id}" value="true" /><label for="${id}">` + translate(label) + `</label></dd>`);
-              dl.append(html);
-              const settingsBase = settings.extendedSettings[e.plugin.name];
-              if (settingsBase[p.id] == true) {
-                toggleCheckboxes.push(id);
-              }
+    pluginPrefs.forEach(({ plugin, prefs }) => {
+      // Only show settings if plugin is visible
+      if (this.settings.showPlugins.includes(plugin.name)) {
+        const label = plugin.label;
+        const dl = $("<dl>");
+        dl.append(`<dt>` + translate(label) + `</dt>`);
+        prefs.forEach((p) => {
+          const id = plugin.name + "-" + p.id;
+          const label = p.label;
+          if (p.type === "boolean") {
+            const html = $(
+              `<dd><input type="checkbox" id="${id}" value="true" /><label for="${id}">` +
+                translate(label) +
+                `</label></dd>`
+            );
+            dl.append(html);
+            const settingsBase = this.settings.extendedSettings[plugin.name];
+            if (settingsBase?.[p.id] === true) {
+              toggleCheckboxes.push(id);
             }
-          });
-          bs.append(dl);
-        }
-      });
-    }
-
-    toggleCheckboxes.forEach(function(cb) {
-      $('#' + cb).prop('checked', true);
+          }
+        });
+        bs.append(dl);
+      }
     });
 
-    $('#editprofilelink').toggle(settings.isEnabled('iob') || settings.isEnabled('cob') || settings.isEnabled('bwp') || settings.isEnabled('basal'));
+    toggleCheckboxes.forEach((id) => $("#" + id).prop("checked", true));
+
+    $("#editprofilelink").toggle(
+      this.settings.isEnabled("iob") ||
+        this.settings.isEnabled("cob") ||
+        this.settings.isEnabled("bwp") ||
+        this.settings.isEnabled("basal")
+    );
 
     //fetches token from url
-    var parts = (location.search || '?').substring(1).split('&');
-    var token = '';
-    parts.forEach(function (val) {
-      if (val.startsWith('token=')) {
-        token = val.substring('token='.length);
-      }
-    });
+    const parts = (location.search || "?").substring(1).split("&");
+    const tokenParam = parts.find((val) => val.startsWith("token="));
 
     //if there is a token, append it to each of the links in the hamburger menu
-    /* eslint-disable security/detect-possible-timing-attacks */ // verified false positive
-    if (token != '') {
-      token = '?token=' + token;
-      $('#reportlink').attr('href', 'report' + token);
-      $('#editprofilelink').attr('href', 'profile' + token);
-      $('#admintoolslink').attr('href', 'admin' + token);
-      $('#editfoodlink').attr('href', 'food' + token);
+    if (tokenParam) {
+      $("#reportlink").attr("href", `report?${tokenParam}`);
+      $("#editprofilelink").attr("href", `profile?${tokenParam}`);
+      $("#admintoolslink").attr("href", `admin?${tokenParam}`);
+      $("#editfoodlink").attr("href", `food?${tokenParam}`);
     }
   }
 
-  function wireForm () {
-    $('#useDefaults').click(function(event) {
-      settings.eachSetting(function clearEachSetting (name) {
-        storage.remove(name);
-      });
-      storage.remove('basalrender');
-      storage.remove('bolus');
+  #wireForm() {
+    const $ = this.$;
+    $("#useDefaults").on("click", (event) => {
+      this.settings.eachSetting((name) => this.storage.remove(name));
+      this.storage.remove("basalrender");
+      this.storage.remove("bolus");
       event.preventDefault();
-      client.browserUtils.reload();
+      this.client.browserUtils.reload();
     });
 
-    $('#save').click(function(event) {
-      function checkedPluginNames () {
-        var checkedPlugins = [];
-        $('#show-plugins input:checked').each(function eachPluginCheckbox (index, checkbox) {
-          checkedPlugins.push($(checkbox).val());
-        });
-        return checkedPlugins.join(' ');
+    $("#save").on("click", (event) => {
+      function checkedPluginNames() {
+        return $("#show-plugins input:checked")
+          .map((_, checkbox) => $(checkbox).val())
+          .toArray()
+          .join(" ");
       }
 
-      client.plugins.eachEnabledPlugin(function each (plugin) {
-        if (plugin.getClientPrefs) {
-          const prefs = plugin.getClientPrefs();
+      this.client.plugins.eachEnabledPlugin(
+        /** @param {import("../types").Plugin} plugin */ (plugin) => {
+          if (plugin.getClientPrefs) {
+            const prefs = plugin.getClientPrefs();
 
-          prefs.forEach(function(p) {
-            const id = plugin.name + "-" + p.id;
-            if (p.type == 'boolean') {
-              const val = $("#" + id).prop('checked');
-              storage.set(id, val);
-            }
-          });
+            prefs.forEach((p) => {
+              const id = plugin.name + "-" + p.id;
+              if (p.type == "boolean") {
+                const val = $("#" + id).prop("checked");
+                this.storage.set(id, val);
+              }
+            });
+          }
         }
-      });
+      );
 
-      function storeInBrowser (data) {
-        Object.keys(data).forEach(k => {
-          /* eslint-disable-next-line security/detect-object-injection */ // verified false positive
-          storage.set(k, data[k]);
+      /** @param {Record<string, any>} data */
+      const storeInBrowser = (data) => {
+        Object.keys(data).forEach((k) => {
+          if (typeof k !== "string") return;
+          this.storage.set(k, data[k]);
         });
-      }
+      };
 
       storeInBrowser({
-        units: $('input:radio[name=units-browser]:checked').val()
-        , alarmUrgentHigh: $('#alarm-urgenthigh-browser').prop('checked')
-        , alarmHigh: $('#alarm-high-browser').prop('checked')
-        , alarmLow: $('#alarm-low-browser').prop('checked')
-        , alarmUrgentLow: $('#alarm-urgentlow-browser').prop('checked')
-        , alarmTimeagoWarn: $('#alarm-timeagowarn-browser').prop('checked')
-        , alarmTimeagoWarnMins: parseInt($('#alarm-timeagowarnmins-browser').val()) || 15
-        , alarmTimeagoUrgent: $('#alarm-timeagourgent-browser').prop('checked')
-        , alarmTimeagoUrgentMins: parseInt($('#alarm-timeagourgentmins-browser').val()) || 30
-        , nightMode: $('#nightmode-browser').prop('checked')
-        , editMode: $('#editmode-browser').prop('checked')
-        , showRawbg: $('input:radio[name=show-rawbg]:checked').val()
-        , customTitle: $('input#customTitle').prop('value')
-        , theme: $('input:radio[name=theme-browser]:checked').val()
-        , timeFormat: parseInt($('input:radio[name=timeformat-browser]:checked').val())
-        , language: $('#language').val()
-        , scaleY: $('#scaleY').val()
-        , basalrender: $('#basalrender').val()
-        , bolus: {
-          renderOver: $('#bolusRenderOver').val()
-          , renderFormat: $('#bolusRenderFormat').val()
-          , renderFormatSmall: $('#bolusRenderFormatSmall').val()
-        }
-        , showPlugins: checkedPluginNames()
-        , storageVersion: STORAGE_VERSION
+        units: $("input:radio[name=units-browser]:checked").val(),
+        alarmUrgentHigh: $("#alarm-urgenthigh-browser").prop("checked"),
+        alarmHigh: $("#alarm-high-browser").prop("checked"),
+        alarmLow: $("#alarm-low-browser").prop("checked"),
+        alarmUrgentLow: $("#alarm-urgentlow-browser").prop("checked"),
+        alarmTimeagoWarn: $("#alarm-timeagowarn-browser").prop("checked"),
+        alarmTimeagoWarnMins: parseInt(
+          $("#alarm-timeagowarnmins-browser").val()?.toString() ?? "15"
+        ),
+        alarmTimeagoUrgent: $("#alarm-timeagourgent-browser").prop("checked"),
+        alarmTimeagoUrgentMins: parseInt(
+          $("#alarm-timeagourgentmins-browser").val()?.toString() ?? "30"
+        ),
+        nightMode: $("#nightmode-browser").prop("checked"),
+        editMode: $("#editmode-browser").prop("checked"),
+        showRawbg: $("input:radio[name=show-rawbg]:checked").val(),
+        customTitle: $("input#customTitle").prop("value"),
+        theme: $("input:radio[name=theme-browser]:checked").val(),
+        timeFormat: $("input:radio[name=timeformat-browser]:checked").val(),
+
+        language: $("#language").val(),
+        scaleY: $("#scaleY").val(),
+        basalrender: $("#basalrender").val(),
+        bolus: {
+          renderOver: $("#bolusRenderOver").val(),
+          renderFormat: $("#bolusRenderFormat").val(),
+          renderFormatSmall: $("#bolusRenderFormatSmall").val(),
+        },
+        showPlugins: checkedPluginNames(),
+        storageVersion: STORAGE_VERSION,
       });
 
       event.preventDefault();
-      client.browserUtils.reload();
+      this.client.browserUtils.reload();
     });
   }
 
-  function showLocalstorageError () {
-    var msg = '<b>Settings are disabled.</b><br /><br />Please enable cookies so you may customize your Nightscout site.';
-    $('.browserSettings').html('<legend>Settings</legend>' + msg + '');
-    $('#save').hide();
+  #showLocalstorageError() {
+    const html = `
+    <legend>Settings</legend>
+    <b>Settings are disabled.</b>
+    <br /><br />
+    Please enable cookies so you may customize your Nightscout site.`;
+
+    $(".browserSettings").html(html);
+    $("#save").hide();
   }
 
-  function handleStorageVersions () {
-    var previousVersion = parseInt(storage.get('storageVersion'));
+  #handleStorageVersions() {
+    const previousVersion = parseInt(
+      this.storage.get("storageVersion")?.toString() ?? ""
+    );
 
     //un-versioned settings
     if (isNaN(previousVersion)) {
       //special showPlugins handling for careportal
       //prevent careportal from being hidden by old stored settings
-      if (settings.isEnabled('careportal')) {
-        var storedShowPlugins = storage.get('showPlugins');
-        if (storedShowPlugins && storedShowPlugins.indexOf('careportal') === -1) {
-          settings.showPlugins += ' careportal';
+      if (this.settings.isEnabled("careportal")) {
+        const storedShowPlugins = this.storage.get("showPlugins");
+        if (storedShowPlugins && !storedShowPlugins.includes("careportal")) {
+          this.settings.showPlugins += " careportal";
         }
       }
     }
   }
-
-  settings.extendedSettings = serverSettings.extendedSettings || { settings: {} };
-
-  try {
-    settings.eachSetting(function setEach (name) {
-      var stored = storage.get(name);
-      /* eslint-disable-next-line security/detect-object-injection */ // verified false positive
-      return stored !== undefined && stored !== null ? stored : serverSettings.settings[name];
-    });
-
-    if (serverSettings.settings.thresholds) {
-      settings.thresholds = serverSettings.settings.thresholds;
-    }
-
-
-    if (serverSettings.settings.enable) {
-      settings.enable = serverSettings.settings.enable;
-    }
-
-    if (settings.enable.indexOf('ar2') < 0) {
-      settings.enable += ' ar2';
-    }
-    handleStorageVersions();
-    if (!settings.extendedSettings.basal) {
-      settings.extendedSettings.basal = {};
-    }
-
-    var basalStored = storage.get('basalrender');
-    settings.extendedSettings.basal.render = basalStored !== null ? basalStored : settings.extendedSettings.basal.render;
-
-    if (!settings.extendedSettings.bolus) {
-      settings.extendedSettings.bolus = {
-        renderOver: 0
-        , renderFormat: 'default'
-        , renderFormatSmall: 'default'
-      };
-    }
-
-    var bolusStored = storage.get('bolus');
-    settings.extendedSettings.bolus.renderOver = bolusStored !== null ? Number(bolusStored.renderOver) : settings.extendedSettings.bolus.renderOver;
-    settings.extendedSettings.bolus.renderFormat = bolusStored !== null ? bolusStored.renderFormat : settings.extendedSettings.bolus.renderFormat;
-    settings.extendedSettings.bolus.renderFormatSmall = bolusStored !== null ? bolusStored.renderFormatSmall : settings.extendedSettings.bolus.renderFormatSmall;
-
-  } catch (err) {
-    console.error(err);
-    showLocalstorageError();
-  }
-
-  init.loadAndWireForm = function loadAndWireForm () {
-    loadForm();
-    wireForm();
-  };
-
-  init.loadPluginSettings = function loadPluginSettings (client) {
-
-    client.plugins.eachEnabledPlugin(function each (plugin) {
-      if (plugin.getClientPrefs) {
-        const prefs = plugin.getClientPrefs();
-
-        if (!settings.extendedSettings[plugin.name]) {
-          settings.extendedSettings[plugin.name] = {};
-        }
-
-        const settingsBase = settings.extendedSettings[plugin.name];
-
-        prefs.forEach(function(p) {
-          const id = plugin.name + "-" + p.id;
-          const stored = storage.get(id);
-          if (stored !== null) {
-            settingsBase[p.id] = stored;
-          }
-        });
-      }
-    });
-
-  }
-
-  return settings;
 }
 
-module.exports = init;
+module.exports = BrowserSettings;

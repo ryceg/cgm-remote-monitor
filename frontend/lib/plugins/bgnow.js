@@ -1,285 +1,364 @@
-'use strict';
+"use strict";
 
-var times = require('../times');
+const times = require("../times");
 
-var offset = times.mins(2.5).msecs;
+const offset = times.mins(2.5).msecs;
+const bucketFields = /** @type {const} */ (["index", "fromMills", "toMills"]);
 
-function init (ctx) {
+/**
+ * @typedef {{
+ *   isEmpty?: boolean;
+ *   mills: number;
+ *   mean: number;
+ *   last?: number;
+ *   errors?: import("../types").Sgv[];
+ *   sgvs: import("../types").Sgv[];
+ * }} Bucket
+ */
 
-  var dayjs = ctx.dayjs;
-  var translate = ctx.language.translate;
-  var utils = require('../utils')(ctx);
+/** @typedef {Omit<Bucket, (typeof bucketFields)[number]>} BGNowProperties */
+/** @typedef {Bucket[]} BucketsProperties */
 
-  var bgnow = {
-    name: 'bgnow'
-    , label: 'BG Now'
-    , pluginType: 'pill-primary'
-  };
-  bgnow.mostRecentBucket = function mostRecentBucket (buckets) {
-    return buckets.find(function notEmpty(bucket) {
-      return bucket && !bucket.isEmpty;
-    });
-  };
-  bgnow.previousBucket = function previousBucket(recent, buckets) {
-    var previous = null;
+// There's no sane way to pass the generic parameter to `ReturnType<BgNow["calcDelta"]>`,
+// so we have construct the type manually.
+/**
+ * @typedef {null
+ *   | (Omit<NonNullable<ReturnType<BgNow["calcDelta"]>>, "previous"> & {
+ *       previous?: Omit<Bucket, (typeof bucketFields)[number]>;
+ *     })} DeltaProperties
+ */
 
-    if (recent && typeof recent === 'object') {
-      previous = buckets.find(function afterFirstNotEmpty(bucket) {
-        return bucket.mills < recent.mills && !bucket.isEmpty;
-      });
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class BgNow {
+  name = /** @type {const} */ ("bgnow");
+  label = "BG Now";
+  pluginType = "pill-primary";
+
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.dayjs = ctx.dayjs;
+    this.translate = ctx.language.translate;
+    this.utils = require("../utils")(ctx);
+
+    /** @type {Bucket} */
+    this.recent;
+  }
+
+  /** @param {Bucket[]} buckets */
+  mostRecentBucket(buckets) {
+    // TODO revisit is b really potentially falsy?\
+    return buckets.find((b) => b && !b.isEmpty);
+  }
+
+  /**
+   * @param {Bucket | undefined} recent
+   * @param {Bucket[]} buckets
+   */
+  previousBucket(recent, buckets) {
+    if (typeof recent !== "object") return;
+
+    return buckets.find((b) => !b.isEmpty && b.mills < recent.mills);
+  }
+
+  /**
+   * @template {Record<PropertyKey, unknown>} TBucket
+   * @param {TBucket} [bucket]
+   * @returns {Omit<TBucket, (typeof bucketFields)[number]> | undefined}
+   */
+  omitBucketFields(bucket) {
+    if (!bucket) return;
+
+    const cloned = structuredClone(bucket);
+
+    for (const field of bucketFields) {
+      delete cloned[field];
     }
 
-    return previous;
-  };
+    return cloned;
+  }
 
-  bgnow.setProperties = function setProperties (sbx) {
-    var buckets = bgnow.fillBuckets(sbx);
-    var recent = bgnow.mostRecentBucket(buckets);
-    var previous = bgnow.previousBucket(recent, buckets);
-    var delta = bgnow.calcDelta(recent, previous, sbx);
-    sbx.offerProperty('bgnow', function setBGNow ( ) {
-      const newBgNow = { ...recent };
-        for (const key of ['index', 'fromMills', 'toMills']) {
-          delete newBgNow[key];
-        }
-        return newBgNow;
+  /** @param {ReturnType<import("../sandbox")>} sbx */
+  setProperties(sbx) {
+    const buckets = this.fillBuckets(sbx);
+    const recent = this.mostRecentBucket(buckets);
+    const previous = this.previousBucket(recent, buckets);
+    const delta = this.calcDelta(recent, previous, sbx);
+
+    sbx.offerProperty("bgnow", () => {
+      return this.omitBucketFields(recent);
     });
 
-    sbx.offerProperty('delta', function setBGNow ( ) {
+    sbx.offerProperty("delta", () => {
       return delta;
     });
 
-    sbx.offerProperty('buckets', function setBGNow ( ) {
+    sbx.offerProperty("buckets", () => {
       return buckets;
     });
-  };
+  }
 
-  bgnow.fillBuckets = function fillBuckets (sbx, opts) {
+  /**
+   * @param {ReturnType<import("../sandbox")>} sbx
+   * @param {{ bucketCount?: number; bucketMins?: number }} [opts]
+   */
+  fillBuckets(sbx, opts) {
+    const bucketCount = opts?.bucketCount || 4;
+    const bucketMins = opts?.bucketMins || 5;
+    const bucketMsecs = times.mins(bucketMins).msecs;
 
-    var bucketCount = (opts && opts.bucketCount) || 4;
-    var bucketMins = (opts && opts.bucketMins) || 5;
-    var bucketMsecs = times.mins(bucketMins).msecs;
+    const lastSGVMills = sbx.lastSGVMills();
 
-    var lastSGVMills = sbx.lastSGVMills();
+    const buckets = Array(bucketCount)
+      .fill(0)
+      .map((_, index) => {
+        const fromMills = lastSGVMills - offset - index * bucketMsecs;
 
-    var buckets = Array.from({ length: bucketCount }, function createBucket(_, index) {
-      var fromMills = lastSGVMills - offset - (index * bucketMsecs);
-      return {
-        index: index,
-        fromMills: fromMills,
-        toMills: fromMills + bucketMsecs,
-        sgvs: []
-      };
-    });
-
-    sbx.data.sgvs.filter((sgv) => {
-
-      //if in the future, return true and keep taking right
-      if (sgv.mills > sbx.time) {
-        return true;
-      }      var bucket = buckets.find(function containsSGV (bucket) {
-        return sgv.mills >= bucket.fromMills && sgv.mills <= bucket.toMills;
+        return {
+          index,
+          fromMills,
+          toMills: fromMills + bucketMsecs,
+          /** @type {import("../types").Sgv[]} */
+          sgvs: [],
+        };
       });
+
+    sbx.data.sgvs.toReversed().forEach((sgv) => {
+      // If in the future, skip to the next iteration
+      if (sgv.mills > sbx.time) return;
+
+      const bucket = buckets.find(
+        (bucket) =>
+          sgv.mills >= bucket.fromMills && sgv.mills <= bucket.toMills,
+      );
 
       if (bucket) {
         sbx.scaleEntry(sgv);
         bucket.sgvs.push(sgv);
       }
-
-      return bucket;
     });
 
-    return buckets.map(bgnow.analyzeBucket);
-  };
+    return buckets.map((b) => this.analyzeBucket(b));
+  }
 
-  function notError (entry) {
+  /** @protected @param {import("../types").Sgv} entry */
+  notError(entry) {
     return entry && entry.mgdl > 39; //TODO maybe lower instead of expecting dexcom?
   }
 
-  function isError (entry) {
+  /** @protected @param {import("../types").Sgv} entry */
+  isError(entry) {
     return !entry || !entry.mgdl || entry.mgdl < 39;
   }
 
-  bgnow.analyzeBucket = function analyzeBucket (bucket) {
-
-    if (utils.isEmpty(bucket.sgvs)) {
-      bucket.isEmpty = true;
-      return bucket;
-    }
-    var details = { };
-
-    var sgvs = bucket.sgvs.filter(notError);
-    function calcMean ( ) {
-      var sum = 0;
-      sgvs.forEach(function eachSGV (sgv) {
-        sum += Number(sgv.mgdl);
-      });
-
-      return sum / sgvs.length;
+  /**
+   * @param {Omit<Bucket, "mean" | "mills" | "last" | "errors"> &
+   *   Partial<Bucket>} bucket
+   * @returns {Bucket}
+   * @protected
+   */
+  analyzeBucket(bucket) {
+    if (bucket.sgvs.length === 0) {
+      return { isEmpty: true, sgvs: [], mills: NaN, mean: NaN };
     }
 
-    var mean = calcMean(sgvs);
+    const sgvs = bucket.sgvs.filter((b) => this.notError(b));
+    const sum = sgvs.reduce((acc, sgv) => acc + sgv.mgdl, 0);
+    const mean = sum / sgvs.length;
+    const mostRecent = sgvs.toSorted((a, b) => b.mills - a.mills).at(0);
+    const errors = bucket.sgvs.filter((b) => this.isError(b));
 
-    if (mean !== null && mean !== undefined && typeof mean === 'number' && !isNaN(mean)) {
-      details.mean = mean;
-    }
-    var mostRecent = sgvs.length > 0
-      ? sgvs.reduce((max, sgv) => (!max || (sgv?.mills || 0) > (max?.mills || 0) ? sgv : max), null)
-      : null;
+    return {
+      mean,
+      last: mostRecent?.mgdl ?? NaN,
+      mills: mostRecent?.mills ?? NaN,
+      ...(errors.length > 0 && { errors }),
+      ...bucket,
+    };
+  }
 
-    if (mostRecent) {
-      details.last = mostRecent.mgdl;
-      details.mills = mostRecent.mills;
-    }
-    var errors = bucket.sgvs.filter(isError);
-    if (errors.length > 0) {
-      details.errors = errors;
-    }
-
-    return Object.assign({}, details, bucket);
-  };
-
-  bgnow.calcDelta = function calcDelta (recent, previous, sbx) {
-
-    if (utils.isEmpty(recent)) {
+  /**
+   * @template {{ mills: number; mean: number }} TPrevious
+   * @param {{ mills: number; mean: number } | undefined} recent
+   * @param {TPrevious | undefined} previous
+   * @param {ReturnType<import("../sandbox")>} sbx
+   */
+  calcDelta(recent, previous, sbx) {
+    if (!recent || Object.getOwnPropertyNames(recent).length === 0) {
       //console.info('No recent CGM data is available');
       return null;
     }
 
-    if (utils.isEmpty(previous)) {
+    if (!previous || Object.getOwnPropertyNames(previous).length === 0) {
       //console.info('previous bucket not found, not calculating delta');
       return null;
     }
 
-    var delta = {
-      absolute: recent.mean - previous.mean
-      , elapsedMins: (recent.mills - previous.mills) / times.min().msecs
+    const absolute = recent.mean - previous.mean;
+    const elapsedMins = (recent.mills - previous.mills) / times.min().msecs;
+    const interpolated = elapsedMins > 9;
+    const mean5MinsAgo = interpolated
+      ? recent.mean - ((recent.mean - previous.mean) / elapsedMins) * 5
+      : recent.mean - (recent.mean - previous.mean);
+
+    const mgdl = Math.round(recent.mean - mean5MinsAgo);
+
+    const scaled =
+      sbx.settings.units === "mmol"
+        ? sbx.roundBGToDisplayFormat(
+            sbx.scaleMgdl(recent.mean) - sbx.scaleMgdl(mean5MinsAgo),
+          )
+        : mgdl;
+
+    const display = (scaled >= 0 ? "+" : "") + scaled;
+
+    return {
+      absolute,
+      elapsedMins,
+      interpolated,
+      mean5MinsAgo,
+      mgdl,
+      scaled,
+      display,
+      previous: this.omitBucketFields(previous),
+      times: {
+        recent: recent.mills,
+        previous: previous.mills,
+      },
     };
+  }
 
-    delta.interpolated = delta.elapsedMins > 9;
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    const translate = this.translate;
+    const prop = sbx.properties.bgnow;
+    const delta = sbx.properties.delta;
 
-    delta.mean5MinsAgo = delta.interpolated ?
-      recent.mean - delta.absolute / delta.elapsedMins * 5 : recent.mean - delta.absolute;
-
-    delta.times = {
-      recent: recent.mills
-      , previous: previous.mills
-    };
-
-    delta.mgdl = Math.round(recent.mean - delta.mean5MinsAgo);
-
-    delta.scaled = sbx.settings.units === 'mmol' ?
-      sbx.roundBGToDisplayFormat(sbx.scaleMgdl(recent.mean) - sbx.scaleMgdl(delta.mean5MinsAgo)) : delta.mgdl;
-    delta.display = (delta.scaled >= 0 ? '+' : '') + delta.scaled;
-
-
-    // eslint-disable-next-line no-unused-vars
-    const { index, fromMills, toMills, ...previousRest } = previous;
-    delta.previous = previousRest;
-
-    return delta;
-
-  };
-
-  bgnow.updateVisualisation = function updateVisualisation (sbx) {
-    var prop = sbx.properties.bgnow;
-    var delta = sbx.properties.delta;
-
-    var info = [];
-    var display = delta && delta.display;
+    /** @type {Record<"label" | "value", string>[]} */
+    const info = [];
+    let display = (delta && delta.display) ?? undefined;
 
     if (delta && delta.interpolated) {
-      display += ' *';
-      info.push({label: translate('Elapsed Time'), value: Math.round(delta.elapsedMins) + ' ' + translate('mins')});
-      info.push({label: translate('Absolute Delta'), value: sbx.roundBGToDisplayFormat(sbx.scaleMgdl(delta.absolute)) + ' ' + sbx.unitsLabel});
-      info.push({label: translate('Interpolated'), value: sbx.roundBGToDisplayFormat(sbx.scaleMgdl(delta.mean5MinsAgo)) + ' ' + sbx.unitsLabel});
+      display += " *";
+      info.push({
+        label: translate("Elapsed Time"),
+        value: Math.round(delta.elapsedMins) + " " + translate("mins"),
+      });
+      info.push({
+        label: translate("Absolute Delta"),
+        value:
+          sbx.roundBGToDisplayFormat(sbx.scaleMgdl(delta.absolute)) +
+          " " +
+          sbx.unitsLabel,
+      });
+      info.push({
+        label: translate("Interpolated"),
+        value:
+          sbx.roundBGToDisplayFormat(sbx.scaleMgdl(delta.mean5MinsAgo)) +
+          " " +
+          sbx.unitsLabel,
+      });
     }
 
-    var deviceInfos = { };
-    if (prop.sgvs) {
-      prop.sgvs.forEach(function deviceAndValue(entry) {
-        var device = utils.deviceName(entry.device);
-        deviceInfos[device] = {
-          time: utils.timeFormat(dayjs(entry.mills), sbx)
-          , value: sbx.scaleEntry(entry)
-          , recent: entry
-        };
-      });
-    }    if (delta && delta.previous && delta.previous.sgvs) {
-      delta.previous.sgvs.forEach(function deviceAndValue(entry) {
-        var device = utils.deviceName(entry.device);
-        var deviceInfo = deviceInfos[device];
-        if (deviceInfo && deviceInfo.recent) {
-          var deviceDelta = bgnow.calcDelta(
-            { mills: deviceInfo.recent.mills , mean: deviceInfo.recent.mgdl}
-            , { mills: entry.mills, mean: entry.mgdl}
-            , sbx
-          );
+    /**
+     * @type {Record<
+     *   string,
+     *   {
+     *     time: string;
+     *     value: number;
+     *     recent?: import("../types").Sgv;
+     *     delta?: string;
+     *   }
+     * >}
+     */
+    const deviceInfos = {};
 
-          if (deviceDelta) {
-            deviceInfo.delta = deviceDelta.display
-          }
-        } else {
-          deviceInfos[device] = {
-            time: utils.timeFormat(dayjs(entry.mills), sbx)
-            , value: sbx.scaleEntry(entry)
-          };
-        }
-      });
-
-      if (Object.keys(deviceInfos).length > 1) {
-        Object.entries(deviceInfos).forEach(([name, deviceInfo]) => {
-          var display = deviceInfo.value;
-          if (deviceInfo.delta) {
-            display += ' ' + deviceInfo.delta;
-          }
-
-          display += ' (' + deviceInfo.time + ')';
-
-          info.push({label: name, value: display});
-        });
-      }
-    }
-
-    sbx.pluginBase.updatePillText({
-      name: 'delta'
-      , label: translate('BG Delta')
-      , pluginType: 'pill-major'
-      , pillFlip: true
-    }, {
-      value: display
-      , label: sbx.unitsLabel
-      , info: utils.isEmpty(info) ? null : info
+    prop?.sgvs?.forEach((entry) => {
+      const device = this.utils.deviceName(entry.device);
+      if (!device) return;
+      deviceInfos[device] = {
+        time: this.utils.timeFormat(this.dayjs(entry.mills), sbx),
+        value: sbx.scaleEntry(entry),
+        recent: entry,
+      };
     });
-  };
 
-  function virtAsstDelta(next, slots, sbx) {
-    var delta = sbx.properties.delta;
+    delta?.previous?.sgvs?.forEach((entry) => {
+      const device = this.utils.deviceName(entry.device);
+      if (!device) return;
+
+      const deviceInfo = deviceInfos[device];
+      if (deviceInfo && deviceInfo.recent) {
+        const deviceDelta = this.calcDelta(
+          { mills: deviceInfo.recent.mills, mean: deviceInfo.recent.mgdl },
+          { mills: entry.mills, mean: entry.mgdl },
+          sbx,
+        );
+        if (deviceDelta) deviceInfo.delta = deviceDelta.display;
+      } else {
+        deviceInfos[device] = {
+          time: this.utils.timeFormat(this.dayjs(entry.mills), sbx),
+          value: sbx.scaleEntry(entry),
+        };
+      }
+    });
+    if (delta?.previous?.sgvs && Object.keys(deviceInfos).length > 1) {
+      Object.entries(deviceInfos).forEach(([name, deviceInfo]) => {
+        let display = deviceInfo.value.toString();
+        if (deviceInfo.delta) {
+          display += " " + deviceInfo.delta;
+        }
+
+        display += " (" + deviceInfo.time + ")";
+
+        info.push({ label: name, value: display });
+      });
+    }
+
+    sbx.pluginBase.updatePillText(
+      {
+        name: "delta",
+        label: translate("BG Delta"),
+        pluginType: "pill-major",
+        pillFlip: true,
+      },
+      {
+        value: display,
+        label: sbx.unitsLabel,
+        ...(info.length && { info }),
+      },
+    );
+  }
+  /** @protected @type {import("../types").VirtAsstIntentHandlerFn} */
+  virtAsstDelta(next, _slots, sbx) {
+    const delta = sbx.properties.delta;
 
     next(
-      translate('virtAsstTitleDelta')
-      , translate(delta.interpolated ? 'virtAsstDeltaEstimated' : 'virtAsstDelta'
-      , {
+      this.translate("virtAsstTitleDelta"),
+      this.translate(
+        delta?.interpolated ? "virtAsstDeltaEstimated" : "virtAsstDelta",
+        {
           params: [
-            delta.display == '+0' ? '0' : delta.display
-            , dayjs(delta.times.recent).from(dayjs(sbx.time))
-            , dayjs(delta.times.previous).from(dayjs(sbx.time))
-          ]
-        }
-      )
+            delta?.display == "+0" ? "0" : (delta?.display ?? ""),
+            this.dayjs(delta?.times.recent).from(this.dayjs(sbx.time)),
+            this.dayjs(delta?.times.previous).from(this.dayjs(sbx.time)),
+          ],
+        },
+      ),
     );
   }
 
-  bgnow.virtAsst = {
-    intentHandlers: [{
-      intent: "MetricNow"
-      , metrics: ["delta"]
-      , intentHandler: virtAsstDelta
-    }]
+  /** @satisfies {{ intentHandlers: import("../types").VirtAsstIntentHandler[] }} */
+  virtAsst = {
+    intentHandlers: [
+      {
+        intent: "MetricNow",
+        metrics: ["delta"],
+        intentHandler: this.virtAsstDelta.bind(this),
+      },
+    ],
   };
-
-  return bgnow;
-
 }
 
-module.exports = init;
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new BgNow(ctx);

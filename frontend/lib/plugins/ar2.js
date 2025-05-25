@@ -1,324 +1,367 @@
-'use strict';
+"use strict";
 
-var times = require('../times');
+const times = require("../times");
 
-var BG_REF = 140; //Central tendency
-var BG_MIN = 36; //Not 39, but why?
-var BG_MAX = 400;
-var WARN_THRESHOLD = 0.05;
-var URGENT_THRESHOLD = 0.10;
+const BG_REF = 140; //Central tendency
+const BG_MIN = 36; //Not 39, but why?
+const BG_MAX = 400;
+const WARN_THRESHOLD = 0.05;
+const URGENT_THRESHOLD = 0.1;
 
-var AR = [-0.723, 1.716];
+const AR = /** @type {const} */ ([-0.723, 1.716]);
 
 //TODO: move this to css
-var AR2_COLOR = 'cyan';
+const AR2_COLOR = "cyan";
 
-function init (ctx) {
-  var translate = ctx.language.translate;
-  var dayjs = ctx.dayjs;
+/**
+ * @typedef {{
+ *   forecast?: ReturnType<Ar2["forecast"]>;
+ *   level?: import("../types").Level;
+ *   eventName?: "High" | "Low" | "";
+ *   displayLine?: string;
+ * }} Ar2Properties
+ */
 
-  var ar2 = {
-    name: 'ar2'
-    , label: 'AR2'
-    , pluginType: 'forecast'
-  };
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class Ar2 {
+  name = /** @type {const} */ ("ar2");
+  label = "AR2";
+  pluginType = "forecast";
 
-  function buildTitle (prop, sbx) {
-    var rangeLabel = prop.eventName ? sbx.translate(prop.eventName, { ci: true }).toUpperCase() : sbx.translate('Check BG');
-    var title = sbx.levels.toDisplay(prop.level) + ', ' + rangeLabel;
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.language = ctx.language;
+    this.translate = ctx.language.translate;
+    this.dayjs = ctx.dayjs;
+  }
 
-    var sgv = sbx.lastScaledSGV();
-    if (sgv > sbx.scaleMgdl(sbx.settings.thresholds.bgTargetBottom) && sgv < sbx.scaleMgdl(sbx.settings.thresholds.bgTargetTop)) {
-      title += ' ' + sbx.translate('predicted');
+  /**
+   * @param {Ar2Properties} prop
+   * @param {import("../sandbox").InitializedSandbox} sbx
+   */
+  buildTitle(prop, sbx) {
+    const rangeLabel = prop.eventName
+      ? sbx.translate(prop.eventName, { ci: true }).toUpperCase()
+      : sbx.translate("Check BG");
+    const level =
+      prop.level !== undefined
+        ? sbx.levels.toDisplay(prop.level)
+        : this.translate("(none)");
+    const title = `${level}, ${rangeLabel}`;
+
+    const sgv = sbx.lastScaledSGV();
+    if (
+      sgv > sbx.scaleMgdl(sbx.settings.thresholds.bgTargetBottom) &&
+      sgv < sbx.scaleMgdl(sbx.settings.thresholds.bgTargetTop)
+    ) {
+      return `${title} ${sbx.translate("predicted")}`;
     }
     return title;
   }
 
-  ar2.setProperties = function setProperties (sbx) {
-    sbx.offerProperty('ar2', function setAR2 () {
-
-      var prop = {
-        forecast: ar2.forecast(sbx)
-      };
-
-      var result = checkForecast(prop.forecast, sbx);
-
-      if (result) {
-        prop.level = result.level;
-        prop.eventName = result.eventName;
+  /** @param {import("../sandbox").InitializedSandbox} sbx */
+  setProperties(sbx) {
+    sbx.offerProperty(
+      "ar2",
+      /** @returns {Ar2Properties} */ () => {
+        const forecast = this.forecast(sbx);
+        const scaled = forecast?.predicted?.map((p) => sbx.scaleEntry(p));
+        return {
+          forecast,
+          ...this.checkForecast(forecast, sbx),
+          ...(scaled && scaled.length >= 3
+            ? { displayLine: `BG 15m: ${scaled[2]} ${sbx.unitsLabel}` }
+            : {}),
+        };
       }
-      var predicted = prop.forecast && prop.forecast.predicted;
-      var scaled = predicted && predicted.map(function(p) { return sbx.scaleEntry(p) });
+    );
+  }
 
-      if (scaled && scaled.length >= 3) {
-        prop.displayLine = 'BG 15m: ' + scaled[2] + ' ' + sbx.unitsLabel;
-      }
+  /** @param {import("../sandbox").InitializedSandbox} sbx */
+  checkNotifications(sbx) {
+    if (sbx.time - sbx.lastSGVMills() > times.mins(10).msecs) return;
 
-      return prop;
-    });
-  };
-
-  ar2.checkNotifications = function checkNotifications (sbx) {
-    if (sbx.time - sbx.lastSGVMills() > times.mins(10).msecs) {
-      return;
-    }
-
-    var prop = sbx.properties.ar2;
+    const prop = sbx.properties.ar2;
 
     if (prop && prop.level) {
-      const notify = {
-        level: prop.level
-        , title: buildTitle(prop, sbx)
-        , message: sbx.buildDefaultMessage()
-        , eventName: prop.eventName
-        , pushoverSound: pushoverSound(prop, sbx.levels)
-        , plugin: ar2
-        , debug: buildDebug(prop, sbx)
-      };
-      sbx.notifications.requestNotify(notify);
+      sbx.notifications.requestNotify({
+        level: prop.level,
+        title: this.buildTitle(prop, sbx),
+        message: sbx.buildDefaultMessage(),
+        eventName: prop.eventName,
+        pushoverSound: this.pushoverSound(prop, sbx.levels),
+        plugin: this,
+        debug: this.buildDebug(prop, sbx),
+      });
     }
-  };
+  }
 
-  ar2.forecast = function forecast (sbx) {
-
-    var result = {
-      predicted: []
-      , avgLoss: 0
-    };
-
-    if (!okToForecast(sbx)) {
-      return result;
-    }
-    //fold left, each time update the accumulator
-    result.predicted = Array(6) //only 6 points are used for calculating avgLoss
-      .fill()
-      .reduce(pushPoint, initAR2(sbx))
-      .points;
-
-    // compute current loss
-    var size = Math.min(result.predicted.length - 1, 6);
-    for (var j = 0; j <= size; j++) {
-      result.avgLoss += 1 / size * Math.pow(log10(result.predicted[j].mgdl / 120), 2);
+  /** @param {import("../sandbox").InitializedSandbox} sbx */
+  forecast(sbx) {
+    if (!this.okToForecast(sbx)) {
+      return { predicted: [], avgLoss: 0 };
     }
 
-    return result;
-  };
+    const predicted = new Array(6) //only 6 points are used for calculating avgLoss
+      .fill(0)
+      .reduce(this.pushPoint.bind(this), this.initAR2(sbx)).points;
 
-  ar2.updateVisualisation = function updateVisualisation (sbx) {
-    sbx.pluginBase.addForecastPoints(ar2.forecastCone(sbx), { type: 'ar2', label: 'AR2 Forecast' });
-  };
+    const size = Math.min(predicted.length - 1, 6);
+    const totalLoss = predicted.reduce(
+      (acc, curr) => acc + Math.pow(this.log10(curr.mgdl / 120), 2),
+      0
+    );
 
-  ar2.forecastCone = function forecastCone (sbx) {
+    return { predicted, avgLoss: totalLoss / size };
+  }
 
-    if (!okToForecast(sbx)) {
-      return [];
-    }
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    sbx.pluginBase.addForecastPoints(this.forecastCone(sbx), {
+      type: "ar2",
+      label: "AR2 Forecast",
+    });
+  }
 
-    var coneFactor = getConeFactor(sbx);
+  /** @param {import("../sandbox").InitializedSandbox} sbx */
+  forecastCone(sbx) {
+    if (!this.okToForecast(sbx)) return [];
 
-    function pushConePoints (result, step) {
-      var next = incrementAR2(result);
+    const coneFactor = this.getConeFactor(sbx);
 
-      //offset from points so they are at a unique time
+    /** @param {ReturnType<Ar2["initAR2"]>} result @param {number} step */
+    const pushConePoints = (result, step) => {
+      const next = this.incrementAR2(result);
+
       if (coneFactor > 0) {
-        next.points.push(ar2Point(next
-          , { offset: 2000, coneFactor: -coneFactor, step: step }
-        ));
+        next.points.push(
+          this.ar2Point(next, {
+            offset: 2000,
+            coneFactor: -coneFactor,
+            step: step,
+          })
+        );
       }
 
-      next.points.push(ar2Point(next
-        , { offset: 4000, coneFactor: coneFactor, step: step }
-      ));
+      next.points.push(
+        this.ar2Point(next, {
+          offset: 4000,
+          coneFactor: coneFactor,
+          step: step,
+        })
+      );
 
       return next;
+    };
+
+    return [
+      0.02, 0.041, 0.061, 0.081, 0.099, 0.116, 0.132, 0.146, 0.159, 0.171,
+      0.182, 0.192, 0.201,
+    ].reduce(pushConePoints.bind(this), this.initAR2(sbx)).points;
+  }
+
+  /**
+   * @param {(a: string, b: string) => void} next
+   * @param {unknown} _slots
+   * @param {import("../sandbox").InitializedSandbox} sbx
+   * @protected
+   */
+  virtAsstAr2Handler(next, _slots, sbx) {
+    const forecast = sbx.properties?.ar2?.forecast?.predicted;
+    if (!forecast) {
+      return next(
+        this.translate("virtAsstTitleAR2Forecast"),
+        this.translate("virtAsstUnknown")
+      );
     }
-    //fold left over cone steps, each time update the accumulator
-    var result = [0.020, 0.041, 0.061, 0.081, 0.099, 0.116, 0.132, 0.146, 0.159, 0.171, 0.182, 0.192, 0.201]
-      .reduce(pushConePoints, initAR2(sbx));
 
-    return result.points;
-  };
+    const mgdls = forecast.map((p) => p.mgdl);
+    const mills = forecast.map((p) => p.mills);
+    const max = Math.max(...mgdls);
+    const min = Math.min(...mgdls);
+    const maxForecastMills = Math.max(...mills);
 
-  function virtAsstAr2Handler (next, slots, sbx) {
-    var predicted = sbx?.properties?.ar2?.forecast?.predicted;
-    if (predicted) {
-      var forecast = predicted;
-      var max = forecast[0].mgdl;
-      var min = forecast[0].mgdl;
-      var maxForecastMills = forecast[0].mills;
-      for (var i = 1, len = forecast.length; i < len; i++) {
-        if (forecast[i].mgdl > max) {
-          max = forecast[i].mgdl;
-        }
-        if (forecast[i].mgdl < min) {
-          min = forecast[i].mgdl;
-        }
-        if (forecast[i].mills > maxForecastMills) {
-          maxForecastMills = forecast[i].mills;
-        }
-      }
-      var response = '';
-      if (min === max) {
-        response = translate('virtAsstAR2ForecastAround', {
-          params: [
-            max
-            , dayjs(maxForecastMills).from(dayjs(sbx.time))
-          ]
-        });
-      } else {
-        response = translate('virtAsstAR2ForecastBetween', {
-          params: [
-            min
-            , max
-            , dayjs(maxForecastMills).from(dayjs(sbx.time))
-          ]
-        });
-      }
-      next(translate('virtAsstTitleAR2Forecast'), response);
+    let response = "";
+    if (min === max) {
+      response = this.translate("virtAsstAR2ForecastAround", {
+        params: [
+          max.toString(),
+          this.dayjs(maxForecastMills).from(this.dayjs(sbx.time)),
+        ],
+      });
     } else {
-      next(translate('virtAsstTitleAR2Forecast'), translate('virtAsstUnknown'));
+      response = this.translate("virtAsstAR2ForecastBetween", {
+        params: [
+          min.toString(),
+          max.toString(),
+          this.dayjs(maxForecastMills).from(this.dayjs(sbx.time)),
+        ],
+      });
+    }
+    next(this.translate("virtAsstTitleAR2Forecast"), response);
+  }
+
+  virtAsst = {
+    intentHandlers: [
+      {
+        intent: "MetricNow",
+        metrics: ["ar2 forecast", "forecast"],
+        intentHandler: this.virtAsstAr2Handler.bind(this),
+      },
+    ],
+  };
+
+  /** @protected @param {ReturnType<Ar2['forecast']>} forecast @param {import("../sandbox").InitializedSandbox} sbx */
+  checkForecast(forecast, sbx) {
+    if (!forecast) return;
+
+    const level =
+      forecast.avgLoss > URGENT_THRESHOLD
+        ? sbx.levels.URGENT
+        : forecast.avgLoss > WARN_THRESHOLD
+          ? sbx.levels.WARN
+          : undefined;
+
+    if (level === undefined) return;
+
+    return {
+      level:
+        forecast.avgLoss > URGENT_THRESHOLD
+          ? sbx.levels.URGENT
+          : sbx.levels.WARN,
+      forecast,
+      eventName: this.selectEventType({ forecast }, sbx),
+    };
+  }
+
+  /**
+   * @param {Ar2Properties} prop
+   * @param {import("../sandbox").InitializedSandbox} sbx
+   * @returns {Ar2Properties["eventName"]}
+   * @protected
+   */
+  selectEventType(prop, sbx) {
+    const predicted = prop.forecast?.predicted.map((p) => sbx.scaleEntry(p));
+    if (!predicted) return "";
+
+    const in20Mins = predicted?.at(4);
+    if (in20Mins === undefined) return "";
+
+    if (
+      sbx.settings.alarmHigh &&
+      in20Mins > sbx.scaleMgdl(sbx.settings.thresholds.bgTargetTop)
+    )
+      return "High";
+    if (
+      sbx.settings.alarmLow &&
+      in20Mins < sbx.scaleMgdl(sbx.settings.thresholds.bgTargetBottom)
+    )
+      return "Low";
+
+    return "";
+  }
+
+  /** @protected @param {Ar2Properties} prop @param {import("../levels")} levels */
+  pushoverSound(prop, levels) {
+    switch (true) {
+      case prop.level === levels.URGENT:
+        return "persistent";
+      case prop.eventName === "Low":
+        return "falling";
+      case prop.eventName === "High":
+        return "climb";
     }
   }
 
-  ar2.virtAsst = {
-    intentHandlers: [{
-      intent: 'MetricNow'
-      , metrics: ['ar2 forecast', 'forecast']
-      , intentHandler: virtAsstAr2Handler
-    }]
-  };
+  /** @protected @param {import("../sandbox").InitializedSandbox} sbx */
+  getConeFactor(sbx) {
+    const value = Number(sbx.extendedSettings.coneFactor);
 
-  return ar2;
-}
-
-function checkForecast (forecast, sbx) {
-  var result = undefined;
-
-  if (forecast && forecast.avgLoss > URGENT_THRESHOLD) {
-    result = { level: sbx.levels.URGENT };
-  } else if (forecast && forecast.avgLoss > WARN_THRESHOLD) {
-    result = { level: sbx.levels.WARN };
+    if (isNaN(value) || value < 0) return 2;
+    return value;
   }
 
-  if (result) {
-    result.forecast = forecast;
-    result.eventName = selectEventType(result, sbx);
+  /** @protected @param {import("../sandbox").InitializedSandbox} sbx */
+  okToForecast(sbx) {
+    const bgnow = sbx.properties.bgnow;
+    const delta = sbx.properties.delta;
+
+    if (!bgnow || !delta) return false;
+
+    return (
+      bgnow.mean >= BG_MIN &&
+      delta.mean5MinsAgo &&
+      !isNaN(Number(delta.mean5MinsAgo))
+    );
   }
 
-  return result;
-}
-
-function selectEventType (prop, sbx) {
-  var predicted = prop.forecast && prop.forecast.predicted.map(function(p) { return sbx.scaleEntry(p) });
-
-  var in20mins = predicted && predicted.length >= 4 ? predicted[3] : undefined;
-
-  //if not set to high or low the default eventType will be assumed
-  var eventName = '';
-
-  if (in20mins !== undefined) {
-    if (sbx.settings.alarmHigh && in20mins > sbx.scaleMgdl(sbx.settings.thresholds.bgTargetTop)) {
-      eventName = 'high';
-    } else if (sbx.settings.alarmLow && in20mins < sbx.scaleMgdl(sbx.settings.thresholds.bgTargetBottom)) {
-      eventName = 'low';
-    }
+  /** @protected @param {import("../sandbox").InitializedSandbox} sbx */
+  initAR2(sbx) {
+    return {
+      forecastTime: sbx.properties.bgnow?.mills || sbx.time,
+      /** @type {{ mills: number; mgdl: number; color: string }[]} */
+      points: [],
+      prev: Math.log((sbx.properties.delta?.mean5MinsAgo ?? NaN) / BG_REF),
+      curr: Math.log((sbx.properties.bgnow?.mean ?? NaN) / BG_REF),
+    };
   }
 
-  return eventName;
-}
-
-function pushoverSound (prop, levels) {
-  var sound;
-
-  if (prop.level === levels.URGENT) {
-    sound = 'persistent';
-  } else if (prop.eventName === 'low') {
-    sound = 'falling';
-  } else if (prop.eventName === 'high') {
-    sound = 'climb';
+  /** @protected @param {ReturnType<Ar2['initAR2']>} result */
+  incrementAR2(result) {
+    return {
+      forecastTime: result.forecastTime + times.mins(5).msecs,
+      points: result.points || [],
+      prev: result.curr,
+      curr: AR[0] * result.prev + AR[1] * result.curr,
+    };
   }
 
-  return sound;
-}
-
-function getConeFactor (sbx) {
-  var value = Number(sbx.extendedSettings.coneFactor);
-  if (isNaN(value) || value < 0) {
-    value = 2;
-  }
-  return value;
-}
-
-function okToForecast (sbx) {
-
-  var bgnow = sbx.properties.bgnow;
-  var delta = sbx.properties.delta;
-
-  if (!bgnow || !delta) {
-    return false;
+  /** @protected @param {ReturnType<Ar2['initAR2']>} result */
+  pushPoint(result) {
+    const next = this.incrementAR2(result);
+    next.points.push(this.ar2Point(next, { offset: 2000 }));
+    return next;
   }
 
-  return bgnow.mean >= BG_MIN && delta.mean5MinsAgo !== null && delta.mean5MinsAgo !== undefined && typeof delta.mean5MinsAgo === 'number' && !isNaN(delta.mean5MinsAgo);
+  /**
+   * @param {ReturnType<Ar2["incrementAR2"]>} result
+   * @param {{ step?: number; coneFactor?: number; offset?: number }} options
+   * @protected
+   */
+  ar2Point(result, options) {
+    const step = options.step || 0;
+    const coneFactor = options.coneFactor || 0;
+    const offset = options.offset || 0;
+
+    const mgdl = Math.round(BG_REF * Math.exp(result.curr + coneFactor * step));
+
+    return {
+      mills: result.forecastTime + offset,
+      mgdl: Math.max(BG_MIN, Math.min(BG_MAX, mgdl)),
+      color: AR2_COLOR,
+    };
+  }
+
+  /** @protected @param {Ar2Properties} prop @param {import("../sandbox").InitializedSandbox} sbx */
+  buildDebug(prop, sbx) {
+    if (!prop.forecast) return;
+    return {
+      forecast: {
+        avgLoss: prop.forecast.avgLoss,
+        predicted: prop.forecast.predicted
+          .map((p) => sbx.scaleEntry(p))
+          .join(", "),
+      },
+    };
+  }
+
+  /** @protected @param {number} val */
+  log10(val) {
+    return Math.log(val) / Math.LN10;
+  }
 }
 
-function initAR2 (sbx) {
-  var bgnow = sbx.properties.bgnow;
-  var delta = sbx.properties.delta;
-  var mean5MinsAgo = delta.mean5MinsAgo;
-
-  return {
-    forecastTime: bgnow.mills || sbx.time
-    , points: []
-    , prev: Math.log(mean5MinsAgo / BG_REF)
-    , curr: Math.log(bgnow.mean / BG_REF)
-  };
-}
-
-function incrementAR2 (result) {
-  return {
-    forecastTime: result.forecastTime + times.mins(5).msecs
-    , points: result.points || []
-    , prev: result.curr
-    , curr: AR[0] * result.prev + AR[1] * result.curr
-  };
-}
-
-function pushPoint (result) {
-  var next = incrementAR2(result);
-
-  next.points.push(ar2Point(
-    next
-    , { offset: 2000 }
-  ));
-
-  return next;
-}
-
-function ar2Point (next, options) {
-  var step = options.step || 0;
-  var coneFactor = options.coneFactor || 0;
-  var offset = options.offset || 0;
-
-  var mgdl = Math.round(BG_REF * Math.exp(
-    next.curr + coneFactor * step
-  ));
-
-  return {
-    mills: next.forecastTime + offset
-    , mgdl: Math.max(BG_MIN, Math.min(BG_MAX, mgdl))
-    , color: AR2_COLOR
-  };
-}
-
-function buildDebug (prop, sbx) {
-  return prop.forecast && {
-    forecast: {
-      avgLoss: prop.forecast.avgLoss
-      , predicted: prop.forecast.predicted.map(function(p) { return sbx.scaleEntry(p) }).join(', ')
-    }
-  };
-}
-
-function log10 (val) { return Math.log(val) / Math.LN10; }
-
-module.exports = init;
+// module.exports = init;
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new Ar2(ctx);

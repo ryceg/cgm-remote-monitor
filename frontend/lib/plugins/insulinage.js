@@ -1,68 +1,92 @@
-'use strict';
+"use strict";
 
-function init(ctx) {
-  var dayjs = ctx.dayjs;
-  var translate = ctx.language.translate;
-  var levels = ctx.levels;
+/** @typedef {ReturnType<InsulinAgePlugin["findLatestTimeChange"]>} IAgeProperties */
 
-  var iage = {
-    name: 'iage'
-    , label: 'Insulin Age'
-    , pluginType: 'pill-minor'
-  };
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class InsulinAgePlugin {
+  name = /** @type {const} */ ("iage");
+  label = "Insulin Age";
+  pluginType = "pill-minor";
 
-  iage.getPrefs = function getPrefs(sbx) {
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.dayjs = ctx.dayjs;
+    this.translate = ctx.language.translate;
+    this.levels = ctx.levels;
+  }
+
+  /** @param {ReturnType<import("../sandbox")>} sbx */
+  getPrefs(sbx) {
     // IAGE_INFO=44 IAGE_WARN=48 IAGE_URGENT=70
     return {
-      info: sbx.extendedSettings.info || 44
-      , warn: sbx.extendedSettings.warn || 48
-      , urgent: sbx.extendedSettings.urgent || 72
-      , enableAlerts: sbx.extendedSettings.enableAlerts || false
+      info: sbx.extendedSettings.info || 44,
+      warn: sbx.extendedSettings.warn || 48,
+      urgent: sbx.extendedSettings.urgent || 72,
+      enableAlerts: sbx.extendedSettings.enableAlerts || false,
     };
-  };
+  }
 
-  iage.setProperties = function setProperties (sbx) {
-    sbx.offerProperty('iage', function setProp ( ) {
-      return iage.findLatestTimeChange(sbx);
-    });
-  };
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  setProperties(sbx) {
+    sbx.offerProperty("iage", () => this.findLatestTimeChange(sbx));
+  }
 
-  iage.checkNotifications = function checkNotifications(sbx) {
-    var insulinInfo = sbx.properties.iage;
+  /** @param {import("../sandbox").InitializedSandbox} sbx */
+  checkNotifications(sbx) {
+    const insulinInfo = sbx.properties.iage;
 
-    if (insulinInfo.notification) {
-      var notification = Object.assign({}, insulinInfo.notification, {
-        plugin: iage
-        , debug: {
-          age: insulinInfo.age
-        }
-      });
-
+    if (insulinInfo?.notification) {
+      const notification = {
+        ...insulinInfo.notification,
+        plugin: this,
+        debug: {
+          age: insulinInfo.age,
+        },
+      };
       sbx.notifications.requestNotify(notification);
     }
-  };
+  }
 
-  iage.findLatestTimeChange = function findLatestTimeChange(sbx) {
+  /** @param {ReturnType<import("../sandbox")>} sbx */
+  findLatestTimeChange(sbx) {
+    const prefs = this.getPrefs(sbx);
 
-    var insulinInfo = {
-      found: false
-      , age: 0
-      , treatmentDate: null
+    const insulinInfo = {
+      found: false,
+      age: 0,
+      /** @type {number | null} */
+      treatmentDate: null,
+      checkForAlert: false,
+      /** @type {number | undefined} */
+      days: undefined,
+      /** @type {number | undefined} */
+      hours: undefined,
+      /** @type {string | undefined} */
+      notes: undefined,
+      /** @type {number | undefined} */
+      minFractions: undefined,
+      /** @type {import("../types").Level} */
+      level: this.levels.NONE,
+      /** @type {import("../types").Notify | undefined} */
+      notification: undefined,
+      /** @type {string | undefined} */
+      display: undefined
     };
-    var prevDate = 0;
 
-    sbx.data.insulinchangeTreatments?.forEach(function eachTreatment (treatment) {
-      var treatmentDate = treatment.mills;
+    let prevDate = 0;
+
+    sbx.data.insulinchangeTreatments?.forEach((treatment) => {
+      const treatmentDate = treatment.mills;
       if (treatmentDate > prevDate && treatmentDate <= sbx.time) {
-
         prevDate = treatmentDate;
         insulinInfo.treatmentDate = treatmentDate;
 
-        var a = dayjs(sbx.time);
-        var b = dayjs(insulinInfo.treatmentDate);
-        var days = a.diff(b,'days');
-        var hours = a.diff(b,'hours') - days * 24;
-        var age = a.diff(b,'hours');
+        const a = this.dayjs(sbx.time);
+        const b = this.dayjs(insulinInfo.treatmentDate);
+        const days = a.diff(b, "days");
+        const hours = a.diff(b, "hours") - days * 24;
+        const age = a.diff(b, "hours");
 
         if (!insulinInfo.found || (age >= 0 && age < insulinInfo.age)) {
           insulinInfo.found = true;
@@ -70,78 +94,88 @@ function init(ctx) {
           insulinInfo.days = days;
           insulinInfo.hours = hours;
           insulinInfo.notes = treatment.notes;
-          insulinInfo.minFractions = a.diff(b,'minutes') - age * 60;
+          insulinInfo.minFractions = a.diff(b, "minutes") - age * 60;
 
-          insulinInfo.display = '';
+          insulinInfo.display = "";
           if (insulinInfo.age >= 24) {
-            insulinInfo.display += insulinInfo.days + 'd';
+            insulinInfo.display += insulinInfo.days + "d";
           }
-          insulinInfo.display += insulinInfo.hours + 'h';
+          insulinInfo.display += insulinInfo.hours + "h";
         }
       }
     });
 
-    var prefs = iage.getPrefs(sbx);
+    let sound = "incoming";
+    let message = "";
+    let sendNotification = false;
 
-    insulinInfo.level = levels.NONE;
-
-    var sound = 'incoming';
-    var message;
-    var sendNotification = false;
-
-    if (insulinInfo.age >= insulinInfo.urgent) {
+    if (insulinInfo.age >= prefs.urgent) {
       sendNotification = insulinInfo.age === prefs.urgent;
-      message = translate('Insulin reservoir change overdue!');
-      sound = 'persistent';
-      insulinInfo.level = levels.URGENT;
+      message = this.translate("Insulin reservoir change overdue!");
+      sound = "persistent";
+      insulinInfo.level = this.levels.URGENT;
     } else if (insulinInfo.age >= prefs.warn) {
       sendNotification = insulinInfo.age === prefs.warn;
-      message = translate('Time to change insulin reservoir');
-      insulinInfo.level = levels.WARN;
-    } else  if (insulinInfo.age >= prefs.info) {
+      message = this.translate("Time to change insulin reservoir");
+      insulinInfo.level = this.levels.WARN;
+    } else if (insulinInfo.age >= prefs.info) {
       sendNotification = insulinInfo.age === prefs.info;
-      message = translate('Change insulin reservoir soon');
-      insulinInfo.level = levels.INFO;
+      message = "Change insulin reservoir soon";
+      insulinInfo.level = this.levels.INFO;
     }
 
     //allow for 20 minute period after a full hour during which we'll alert the user
-    if (prefs.enableAlerts && sendNotification && insulinInfo.minFractions <= 20) {
+    if (
+      prefs.enableAlerts &&
+      sendNotification &&
+      (insulinInfo.minFractions ?? 0) <= 20
+    ) {
       insulinInfo.notification = {
-        title: translate('Insulin reservoir age %1 hours', { params: [insulinInfo.age] })
-        , message: message
-        , pushoverSound: sound
-        , level: insulinInfo.level
-        , group: 'IAGE'
+        title: this.translate("Insulin reservoir age %1 hours", {
+          params: [insulinInfo.age.toString()],
+        }),
+        message: message,
+        pushoverSound: sound,
+        level: insulinInfo.level,
+        group: "IAGE",
       };
     }
 
     return insulinInfo;
-  };
+  }
 
-  iage.updateVisualisation = function updateVisualisation (sbx) {
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    const insulinInfo = sbx.properties.iage;
+    if (!insulinInfo) return;
 
-    var insulinInfo = sbx.properties.iage;
-    var info = [{ label: translate('Changed'), value: new Date(insulinInfo.treatmentDate).toLocaleString() }];
-    if (insulinInfo?.notes && insulinInfo.notes.length > 0) {
-      info.push({label: translate('Notes:'), value: insulinInfo.notes});
+    const info = [
+      {
+        label: this.translate("Inserted"),
+        value: new Date(insulinInfo.treatmentDate ?? NaN).toLocaleString(),
+      },
+    ];
+
+    if (insulinInfo.notes) {
+      info.push({
+        label: this.translate("Notes") + ":",
+        value: insulinInfo.notes,
+      });
     }
 
-    var statusClass = null;
-    if (insulinInfo.level === levels.URGENT) {
-      statusClass = 'urgent';
-    } else if (insulinInfo.level === levels.WARN) {
-      statusClass = 'warn';
-    }
-    sbx.pluginBase.updatePillText(iage, {
-      value: insulinInfo.display
-      , label: translate('IAGE')
-      , info: info
-      , pillClass: statusClass
+    const statusClass =
+      (insulinInfo.level === this.levels.URGENT && "urgent") ||
+      (insulinInfo.level === this.levels.WARN && "warn") ||
+      undefined;
+
+    sbx.pluginBase.updatePillText(this, {
+      value: insulinInfo.display,
+      label: this.translate("CAGE"),
+      info: info,
+      pillClass: statusClass,
     });
-  };
-
-  return iage;
+  }
 }
 
-module.exports = init;
-
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new InsulinAgePlugin(ctx);

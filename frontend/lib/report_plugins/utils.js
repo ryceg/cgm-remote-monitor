@@ -20,7 +20,7 @@ utils.localeDate = function localeDate(day) {
   } else {
     date = dayjs(day);
   }
-  var ret = 
+  var ret =
     [translate('Sunday'),translate('Monday'),translate('Tuesday'),translate('Wednesday'),translate('Thursday'),translate('Friday'),translate('Saturday')][date.day()];
   ret += ' ';
   ret += date.toDate().toLocaleDateString();
@@ -43,7 +43,7 @@ utils.scaledTreatmentBG = function scaledTreatmentBG(treatment,data) {
   var client = window.Nightscout.client;
 
   var SIX_MINS_IN_MS =  360000;
- 
+
   function calcBGByTime(time) {
     var closeBGs = data.filter(function(d) {
       if (!d.y) {

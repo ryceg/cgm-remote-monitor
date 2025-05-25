@@ -1,88 +1,102 @@
-'use strict';
+"use strict";
 
-var lastEntryValue;
-var lastMinutes;
-var lastEntryTime;
+/** @import {Notify, Plugin} from "../types" */
+/** @import {PluginCtx} from "." */
+/** @import {ClientInitializedSandbox} from "../sandbox" */
 
-function init(ctx) {
-    var translate = ctx.language.translate;
-    var speechLangCode = ctx.language.speechCode;
+/** @implements {Plugin} */
+class SpeechPlugin {
+  name = /** @type {const} */ ("speech");
+  label = "Speech";
+  pluginType = "pill-status";
+  pillFlip = true;
 
-    var speech = {
-        name: 'speech',
-        label: 'Speech',
-        pluginType: 'pill-status',
-        pillFlip: true
-    };
+  /** @param {PluginCtx} ctx */
+  constructor(ctx) {
+    this.translate = ctx.language.translate;
+    this.speechLangCode = ctx.language.speechCode;
+  }
 
+  /** @param {string} sayIt */
+  say(sayIt) {
+    console.log("saying", sayIt, "using lang code", this.speechLangCode);
 
-    speech.say = function say(sayIt) {
-        console.log('saying', sayIt, 'using lang code',  speechLangCode);
-        
-        var msg = new SpeechSynthesisUtterance(sayIt.toLowerCase());
-        if (speechLangCode) msg.lang = speechLangCode;
-        window.speechSynthesis.speak(msg);
-    }
+    const msg = new SpeechSynthesisUtterance(sayIt);
+    if (this.speechLangCode) msg.lang = this.speechLangCode;
 
-    speech.visualizeAlarm = function visualizeAlarm(sbx, alarm, alarmMessage) {
-      console.log('Speech got an Alarm Message:',alarmMessage);
-      speech.say(alarmMessage);
-    }
+    window.speechSynthesis.speak(msg);
+  }
 
-    speech.updateVisualisation = function updateVisualisation(sbx) {
+  /**
+   * @param {ClientInitializedSandbox} _sbx
+   * @param {Notify} _alarm
+   * @param {any} alarmMessage
+   */
+  visualizeAlarm(_sbx, _alarm, alarmMessage) {
+    console.log("Speech got an Alarm Message:", alarmMessage);
+    this.say(alarmMessage);
+  }
 
-        if (sbx.data.inRetroMode) return;
+  /** @type {number} */
+  lastEntryTime = NaN;
+  /** @type {number} */
+  lastEntryValue = NaN;
+  /** @type {number} */
+  lastMinutes = NaN;
 
-        var timeNow = sbx.time;
-        var entry = sbx.lastSGVEntry();
-        
-        if (timeNow && entry && entry.mills) {
+  /** @param {ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    if (sbx.data.inRetroMode) return;
 
-            var timeSince = timeNow - entry.mills;
-            var timeMinutes = Math.round(timeSince / 60000);
+    const timeNow = sbx.time;
+    const entry = sbx.lastSGVEntry();
 
-            if (lastEntryTime != entry.mills) {
+    if (timeNow && entry?.mills) {
+      const timeSince = timeNow - entry.mills;
+      const timeMinutes = Math.round(timeSince / 60000);
 
-                var lE = sbx.scaleMgdl(lastEntryValue);
-                var cE = sbx.scaleMgdl(entry.mgdl);      
-                
-                var delta = ((cE - lE) %1 === 0) ? cE - lE : Math.round( (cE - lE) * 10) / 10;
+      if (this.lastEntryTime !== entry.mills) {
+        const lE = sbx.scaleMgdl(this.lastEntryValue);
+        const cE = sbx.scaleMgdl(entry.mgdl);
 
-                lastEntryValue = entry.mgdl;
-                lastEntryTime = entry.mills;
+        const delta =
+          (cE - lE) % 1 === 0 ? cE - lE : Math.round((cE - lE) * 10) / 10;
 
-                var sayIt = sbx.roundBGToDisplayFormat(sbx.scaleMgdl(entry.mgdl));
-                
-                if (!isNaN(delta)) {
+        this.lastEntryValue = entry.mgdl;
+        this.lastEntryTime = entry.mills;
 
-                    sayIt += ', ' + translate('change') + ' ' + delta
-                }
+        let sayIt = sbx
+          .roundBGToDisplayFormat(sbx.scaleMgdl(entry.mgdl))
+          .toString();
 
-                var iob = sbx.properties.iob;
-                if (iob) {
-                    var iobString = sbx.roundInsulinForDisplayFormat(iob.display);
-
-                    if (iobString) {
-                        sayIt += ", IOB " + iobString;
-                    }
-                }
-                speech.say(sayIt);
-
-            } else {
-
-                if (timeMinutes > 5 && timeMinutes != lastMinutes && timeMinutes % 5 == 0) {
-                    lastMinutes = timeMinutes;
-
-                    var lastEntryString = translate('Last entry {0} minutes ago');
-                    sayIt = lastEntryString.replace('{0}', timeMinutes);
-                    speech.say(sayIt);
-                }
-            }
+        if (!isNaN(delta)) {
+          sayIt += ", " + this.translate("change") + " " + delta;
         }
-    };
 
-    return speech;
+        const iobString =
+          sbx.properties.iob &&
+          sbx.roundInsulinForDisplayFormat(Number(sbx.properties.iob.display));
+        if (iobString) {
+          sayIt += ", IOB " + iobString;
+        }
 
+        this.say(sayIt);
+      } else {
+        if (
+          timeMinutes > 5 &&
+          timeMinutes !== this.lastMinutes &&
+          timeMinutes % 5 === 0
+        ) {
+          this.lastMinutes = timeMinutes;
+
+          const lastEntryString = this.translate("Last entry {0} minutes ago");
+          const sayIt = lastEntryString.replace("{0}", timeMinutes.toString());
+          this.say(sayIt);
+        }
+      }
+    }
+  }
 }
 
-module.exports = init;
+/** @param {PluginCtx} ctx */
+module.exports = (ctx) => new SpeechPlugin(ctx);

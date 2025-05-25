@@ -1,130 +1,140 @@
-'use strict';
+"use strict";
 
-var units = require('./units.js')();
-const cloneDeep = require('./utils/clone.js');
-const cloneShallow = require('./utils/cloneShallow.js'); // Corrected casing
+var units = require("./units")();
 
-/**
- * Initialize utils module
- * @param {Object} ctx - The context object
- * @param {Object} ctx.moment - Moment.js instance
- * @param {Object} ctx.settings - Application settings
- * @param {Object} ctx.language - Language module
- * @param {Function} ctx.language.translate - Translation function
- * @returns {Object} Utils object with utility functions
- */
-var dayjs = require('./utils/dayjs');
-function init(ctx) {
-  var settings = ctx.settings;
-  var translate = ctx.language.translate;
-  var timeago = require('./plugins/timeago')(ctx);
+class Utils {
+  /** @param {{dayjs: import("dayjs"); settings: any; language: ReturnType<import("./language")>; levels: import("./levels")}} ctx */
+  constructor(ctx) {
+    this.dayjs = ctx.dayjs;
+    this.moment = ctx.dayjs;
+    this.settings = ctx.settings;
+    this.translate = ctx.language.translate;
+    this.timeago = require("./plugins/timeago")(ctx);
+  }
 
-  var utils = { };
-  /**
-   * Scale blood glucose value according to settings units
-   * @param {number} mgdl - Blood glucose value in mg/dl
-   * @returns {number} - Scaled blood glucose value
-   */
-  utils.dayjs = dayjs;
-  utils.scaleMgdl = function scaleMgdl (mgdl) {
-    if (settings.units === 'mmol' && mgdl) {
+  /** @param {number} mgdl */
+  scaleMgdl(mgdl) {
+    if (this.settings.units === "mmol" && mgdl) {
       return Number(units.mgdlToMMOL(mgdl));
     } else {
       return Number(mgdl);
     }
-  };
-  /**
-   * Round blood glucose value for display
-   * @param {number} bg - Blood glucose value
-   * @returns {number} - Rounded blood glucose value
-   */
-  utils.roundBGForDisplay = function roundBGForDisplay (bg) {
-    return settings.units === 'mmol' ? Math.round(bg * 10) / 10 : Math.round(bg);
-  };
-  /**
-   * Format a number to a fixed precision string
-   * @param {number} value - The number to format
-   * @returns {string} - Formatted string representation
-   */
-  utils.toFixed = function toFixed(value) {
+  }
+
+  /** @param {number} bg - blood glucose */
+  roundBGForDisplay(bg) {
+    return this.settings.units === "mmol"
+      ? Math.round(bg * 10) / 10
+      : Math.round(bg);
+  }
+
+  /** @param {number} value */
+  toFixed(value) {
     if (!value) {
-      return '0';
+      return "0";
     } else {
       var fixed = value.toFixed(2);
-      return fixed === '-0.00' ? '0.00' : fixed;
+      return fixed === "-0.00" ? "0.00" : fixed;
     }
-  };
-
-  /**
-   *
-   * @param {Object|Array} obj
-   * @returns {boolean} - true if the object is empty
-   */
-  utils.isEmpty = obj => [Object, Array].includes((obj || {}).constructor) && !Object.entries((obj || {})).length;
-
+  }
 
   /**
    * Round the number to maxDigits places, return a string
    * that truncates trailing zeros
+   * @param {number} value
+   * @param {number} maxDigits
    */
-  utils.toRoundedStr = function toRoundedStr (value, maxDigits) {
+  toRoundedStr(value, maxDigits) {
     if (!value) {
-      return '0';
+      return "0";
     }
     const mult = Math.pow(10, maxDigits);
-    const fixed = Math.sign(value) * Math.round(Math.abs(value)*mult) / mult;
-    if (isNaN(fixed)) return '0';
+    const fixed =
+      (Math.sign(value) * Math.round(Math.abs(value) * mult)) / mult;
+    if (isNaN(fixed)) return "0";
     return String(fixed);
-  };
+  }
 
+  /** @param {string} timestring @param {string} datestring */
+  mergeInputTime(timestring, datestring) {
+    return this.moment(datestring + " " + timestring, "YYYY-MM-D HH:mm");
+  }
 
-  utils.deepMerge = require('./utils/deepMerge')
-
-  // some helpers for input "date"
-  utils.mergeInputTime = function mergeInputTime(timestring, datestring) {
-    return dayjs(datestring + ' ' + timestring, 'YYYY-MM-D HH:mm');
-  };
-
-  utils.pick = require('./utils/pick');
+  /** @param {string} device */
+  deviceName(device) {
+    const last = device ? device.split("://").at(-1) ?? "" : "unknown";
+    return last.split("/")[0];
+  }
 
   /**
-   * Extract device name from device string
-   * @param {string} device - The device string to parse
-   * @returns {string} - The device name
+   * @param {import("dayjs").Dayjs | undefined} m
+   * @param {ReturnType<import("./sandbox")>} sbx
    */
-  utils.deviceName = function deviceName (device) {
-    var parts = device ? device.split('://') : [];
-    var last = parts.length ? parts[parts.length - 1] : 'unknown';
-    var firstParts = last.split('/');
-    return firstParts.length ? firstParts[0] : last;
-  };
+  timeFormat(m, sbx) {
+    if (!m) return "unknown";
 
-  utils.timeFormat = function timeFormat (m, sbx) {
-    var when;
-    if (m && sbx.data.inRetroMode) {
-      when = m.format('LT');
-    } else if (m) {
-      when = utils.formatAgo(m, sbx.time);
+    if (sbx.data.inRetroMode) {
+      return m.format("LT");
     } else {
-      when = 'unknown';
+      return this.formatAgo(m, sbx.time);
     }
+  }
 
-    return when;
-  };
+  /**
+   * @param {import("dayjs").Dayjs} m
+   * @param {number} nowMills Assuming the time between `m` and `nowMills` is
+   *   neither negative, nor more than a week, this will return a translated
+   *   string of `n{d|m|h} ago`. However, if the time difference _is_ negative,
+   *   or more than a week, then it will return just `"future"` or `"ago"`. This
+   *   is because before the class migration, `formatAgo` just returned
+   *
+   *   ```js
+   *   translate(`%1${ago.shortLabel} ago`, {
+   *     params: [ago.value ? ago.value : ""],
+   *   });
+   *   ```
+   *
+   *   Since `ago.value` is undefined when `shortLabel` is `"future"` or `"ago"`
+   *   (@see
+   *   {@link https://github.com/nightscout/cgm-remote-monitor/blob/46069a/lib/plugins/timeago.js#L115-L181 Original `timeago.js#calcDisplay`}),
+   *   this is equivalent to `translate(ago.shortLabel)`. However, since
+   *   `timeago.js` actually (sometimes) pre-translated these `shortLabel`s
+   *   before the class migration, this would have mostly been fine for users.
+   *   Since the class migration, the `shortLabel` is always untranslated (only
+   *   this function actually use `shortLabel`). This function seems to only be
+   *   called by the `loop` and `openaps` plugins, who want to display the time
+   *   since the last update from their respective services. The `pump` plugin
+   *   used to reimplement this, but since its class migration, it uses this
+   *   function instead.
+   * @see {@link https://github.com/nightscout/cgm-remote-monitor/blob/46069a/lib/utils.js#L76 Original `utils.js#formatAgo`}
+   */
+  formatAgo(m, nowMills) {
+    const ago = this.timeago.calcDisplay({ mills: m.valueOf() }, nowMills);
+    switch (ago.shortLabel) {
+      case "d":
+      case "m":
+      case "h":
+        return this.translate(`%1${ago.shortLabel} ago`, {
+          params: [ago.value?.toString() ?? ""],
+        });
+      case "future":
+      case "ago":
+        return this.translate(ago.shortLabel);
+    }
+  }
 
-  utils.formatAgo = function formatAgo (m, nowMills) {
-    var ago = timeago.calcDisplay({mills: m.valueOf()}, nowMills);
-    return translate('%1' + ago.shortLabel + (ago.shortLabel.length === 1 ? ' ago' : ''), { params: [(ago.value ? ago.value : '')]});
-  };
-
-  utils.timeAt = function timeAt (prefix, sbx) {
-    return sbx.data.inRetroMode ? (prefix ? ' ' : '') + '@ ' : (prefix ? ', ' : '');
-  };
-
-  utils.cloneDeep = cloneDeep;
-  utils.cloneShallow = cloneShallow; // Added this line
-
-  return utils;
+  /**
+   * @param {string | undefined | null} prefix
+   * @param {ReturnType<import("./sandbox")>} sbx
+   */
+  timeAt(prefix, sbx) {
+    return sbx.data.inRetroMode
+      ? (prefix ? " " : "") + "@ "
+      : prefix
+        ? ", "
+        : "";
+  }
 }
 
-module.exports = init;
+/** @param {ConstructorParameters<typeof Utils>} args */
+module.exports = (...args) => new Utils(...args);

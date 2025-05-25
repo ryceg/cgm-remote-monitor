@@ -1,116 +1,187 @@
-'use strict';
+"use strict";
 
-var TOOLTIP_WIDTH = 275;  //min-width + padding
+const TOOLTIP_WIDTH = 275; //min-width + padding
 
-function init (majorPills, minorPills, statusPills, bgStatus, tooltip) {
+class PluginBase {
+  /**
+   * @param {JQuery<HTMLElement>} majorPills
+   * @param {JQuery<HTMLElement>} minorPills
+   * @param {JQuery<HTMLElement>} statusPills
+   * @param {JQuery<HTMLElement>} bgStatus
+   * @param {import("d3").Selection<HTMLDivElement, any, HTMLElement, any>} tooltip
+   */
+  constructor(majorPills, minorPills, statusPills, bgStatus, tooltip) {
+    this.majorPills = majorPills;
+    this.minorPills = minorPills;
+    this.statusPills = statusPills;
+    this.bgStatus = bgStatus;
+    this.tooltip = tooltip;
 
-  var pluginBase = { };
+    /** @type {import("../types").ForecastPoint["info"][]} */
+    this.forecastInfos = [];
+    /** @type {Record<string, import("../types").ForecastPoint[]>} */
+    this.forecastPoints = {};
+  }
+  /** @param {import("../types").Plugin} plugin */
+  #getContainerForPlugin(plugin) {
+    switch (plugin.pluginType) {
+      case "pill-major":
+        return this.majorPills;
+      case "pill-status":
+        return this.statusPills;
+      case "bg-status":
+        return this.bgStatus;
+      default:
+        return this.minorPills;
+    }
+  }
 
-  pluginBase.forecastInfos = [];
-  pluginBase.forecastPoints = {};
-
-  function findOrCreatePill (plugin) {
-    var container = null;
-
-    if (plugin.pluginType === 'pill-major') {
-      container = majorPills;
-    } else if (plugin.pluginType === 'pill-status') {
-      container = statusPills;
-    } else if (plugin.pluginType === 'bg-status') {
-      container = bgStatus;
+  /** @param {JQuery<HTMLElement>} container @param {{pillFlip?: boolean}} [pots] */
+  #createPill(container, { pillFlip } = { pillFlip: false }) {
+    const pill = $("<span></span>");
+    const pillLabel = $("<label></label>");
+    const pillValue = $("<em></em>");
+    if (pillFlip) {
+      pill.append(pillValue);
+      pill.append(pillLabel);
     } else {
-      container = minorPills;
+      pill.append(pillLabel);
+      pill.append(pillValue);
     }
 
-    var pillName = 'span.pill.' + plugin.name;
-    var pill = container.find(pillName);
-
-    var classes = 'pill ' + plugin.name;
-
-    if (!pill || pill.length === 0) {
-      pill = $('<span class="' + classes + '">');
-      var pillLabel = $('<label></label>');
-      var pillValue = $('<em></em>');
-      if (plugin.pillFlip) {
-        pill.append(pillValue);
-        pill.append(pillLabel);
-      } else {
-        pill.append(pillLabel);
-        pill.append(pillValue);
-      }
-
-      container.append(pill);
-    } else {
-      //reset in case a pill class was added and needs to be removed
-      pill.attr('class', classes);
-    }
+    container.append(pill);
 
     return pill;
   }
 
-  pluginBase.updatePillText = function updatePillText (plugin, options) {
+  /** @param {import("../types").Plugin} plugin */
+  findOrCreatePill(plugin) {
+    const container = this.#getContainerForPlugin(plugin);
 
-    var pill = findOrCreatePill(plugin);
+    const foundPill = container.find(`span.pill.${plugin.name}`);
+    const pill = foundPill.length > 0
+      ? foundPill
+      : this.#createPill(container, plugin);
+
+    const classes = "pill " + plugin.name;
+    pill.attr("class", classes);
+
+    return pill;
+  }
+
+  /**
+   * @typedef UpdatePillTextOptionsBase
+   * @property {boolean} [hide]
+   * @property {string} [pillClass]
+   * @property {{ label: string; value: string }[]} [info]
+   */
+  /**
+   * @typedef {UpdatePillTextOptionsBase & {
+   *   labelClass?: string;
+   *   valueClass?: string;
+   *   directHTML?: never;
+   *   directText?: never;
+   *   label?: string;
+   *   value?: string;
+   * }} UpdatePillTextOptionsNoDirect
+   */
+  /**
+   * @typedef {UpdatePillTextOptionsBase & {
+   *   directHTML: true;
+   *   directText?: never;
+   *   label: string;
+   * }} UpdatePillTextOptionsDirectHTML
+   */
+  /**
+   * @typedef {UpdatePillTextOptionsBase & {
+   *   directHTML?: never;
+   *   directText: true;
+   *   label: string;
+   * }} UpdatePillTextOptionsDirectText
+   */
+  /**
+   * @typedef {UpdatePillTextOptionsNoDirect
+   *   | UpdatePillTextOptionsDirectHTML
+   *   | UpdatePillTextOptionsDirectText} UpdatePillTextOptions
+   */
+  /**
+   * @param {import("../types").Plugin} plugin @param {UpdatePillTextOptions}
+   *   options
+   */
+  updatePillText(plugin, options) {
+    const pill = this.findOrCreatePill(plugin);
 
     if (options.hide) {
-      pill.addClass('hidden');
+      pill.addClass("hidden");
     } else {
-      pill.removeClass('hidden');
+      pill.removeClass("hidden");
     }
 
     pill.addClass(options.pillClass);
 
-    if (options.directHTML) {
-      pill.html(options.label);
-    } else {
-      if (options.directText) {
+    switch (true) {
+      case options.directHTML:
+        pill.html(options.label);
+        break;
+      case options.directText:
         pill.text(options.label);
-      } else {
-        pill.find('label').attr('class', options.labelClass).text(options.label);
-        pill.find('em')
-          .attr('class', options.valueClass)
+        break;
+      default:
+        pill
+          .find("label")
+          .attr("class", options.labelClass)
+          .text(options.label);
+        pill
+          .find("em")
+          .attr("class", options.valueClass)
           .toggle(options.value != null)
-          .text(options.value)
-        ;
-      }
+          .text(options.value?.toString());
     }
 
-    if (options.info  && options.info.length) {
-      var html = options.info.map(function mapInfo (i) {
-        return '<strong>' + i.label + '</strong> ' + i.value;
-      }).join('<br/>\n');
+    if (options.info && options.info.length) {
+      const html = options.info
+        .map((i) => `<strong>${i.label}</strong>${i.value}`)
+        .join("<br/>\n");
 
-      pill.mouseover(function pillMouseover (event) {
-        tooltip.style('opacity', .9);
-
-        var windowWidth = $(tooltip.node()).parent().parent().width();
-        var left = event.pageX + TOOLTIP_WIDTH < windowWidth ? event.pageX : windowWidth - TOOLTIP_WIDTH - 10;
-        tooltip.html(html)
-          .style('left', left + 'px')
-          .style('top', (event.pageY + 15) + 'px');
+      pill.on("mouseover", (event) => {
+        this.tooltip.style("opacity", 0.9);
+        const tooltipNode = this.tooltip.node();
+        if (!tooltipNode) return;
+        const windowWidth = $(tooltipNode).parent().parent().width() ?? 0;
+        const left =
+          event.pageX + TOOLTIP_WIDTH < windowWidth
+            ? event.pageX
+            : windowWidth - TOOLTIP_WIDTH - 10;
+        this.tooltip
+          .html(html)
+          .style("left", left + "px")
+          .style("top", event.pageY + 15 + "px");
       });
 
-      pill.mouseout(function pillMouseout ( ) {
-        tooltip.style('opacity', 0);
+      pill.on("mouseout", () => {
+        this.tooltip.style("opacity", 0);
       });
     } else {
-      pill.off('mouseover');
+      pill.off("mouseover");
     }
-  };
-  pluginBase.addForecastPoints = function addForecastPoints (points, info) {
-    points.forEach(function eachPoint (point) {
-      point.type = 'forecast';
-      point.info = info;
-      if (point.mgdl < 13) {
-        point.color = 'transparent';
-      }
-    });
+  }
 
-    pluginBase.forecastInfos.push(info);
-    pluginBase.forecastPoints[info.type] = points;
-  };
+  /**
+   * @param {(Omit<import("../types").ForecastPoint, "type" | "info"> &
+   *   Partial<import("../types").ForecastPoint>)[]} points
+   * @param {import("../types").ForecastPoint["info"]} info
+   */
+  addForecastPoints(points, info) {
+    this.forecastInfos.push(info);
 
-  return pluginBase;
+    this.forecastPoints[info.type] = points.map((p) => ({
+      ...p,
+      type: "forecast",
+      info,
+      ...(p.mgdl < 13 && { color: "transparent" }),
+    }));
+  }
 }
 
-module.exports = init;
+/** @param {ConstructorParameters<typeof PluginBase>} args */
+module.exports = (...args) => new PluginBase(...args);

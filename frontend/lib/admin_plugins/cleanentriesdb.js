@@ -1,6 +1,6 @@
 'use strict';
 
-var dayjs;
+var dayjs = require('../utils/dayjs')
 
 var cleanentriesdb = {
   name: 'cleanentriesdb'
@@ -9,7 +9,6 @@ var cleanentriesdb = {
 };
 
 function init(ctx) {
-  dayjs = ctx.dayjs;
   return cleanentriesdb;
 }
 

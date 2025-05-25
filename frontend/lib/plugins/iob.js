@@ -1,290 +1,380 @@
-'use strict';
+"use strict";
 
-const times = require('../times');
-function init(ctx) {
-  var dayjs = ctx.dayjs;
-  var translate = ctx.language.translate;
-  var utils = require('../utils')(ctx);
+const times = require("../times");
 
-  var iob = {
-    name: 'iob'
-    , label: 'Insulin-on-Board'
-    , pluginType: 'pill-major'
-  };
+/** @typedef {ReturnType<IobPlugin["calcTotal"]>} IobProperties */
 
-  iob.RECENCY_THRESHOLD = times.mins(30).msecs;
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class IobPlugin {
+  name = /** @type {const} */ ("iob");
+  label = "Insulin-on-Board";
+  pluginType = "pill-major";
 
-  iob.setProperties = function setProperties(sbx) {
-    sbx.offerProperty('iob', function setIOB ( ) {
-      return iob.calcTotal(sbx.data.treatments, sbx.data.devicestatus, sbx.data.profile, sbx.time);
-    });
-  };
+  static RECENCY_THRESHOLD = times.mins(30).msecs;
 
-  iob.calcTotal = function calcTotal(treatments, devicestatus, profile, time, spec_profile) {
-    if (time === undefined) {
-      time = Date.now();
-    }
-
-    var result = iob.lastIOBDeviceStatus(devicestatus, time);
-
-    var treatmentResult = (treatments !== undefined && treatments.length) ? iob.fromTreatments(treatments, profile, time, spec_profile) : {};
-
-    if (utils.isEmpty(result)) {
-      result = treatmentResult;
-    } else if (treatmentResult.iob) {
-      result.treatmentIob = +(Math.round(treatmentResult.iob + "e+3")  + "e-3");
-    }
-    if (result.iob) result.iob = +(Math.round(result.iob + "e+3")  + "e-3");
-    return addDisplay(result);
-  };
-
-  function addDisplay(iob) {
-    if (utils.isEmpty(iob) || iob.iob === undefined) {
-      return {};
-    }
-    var display = utils.toFixed(iob.iob);
-    return Object.assign({}, iob, {
-      display: display
-      , displayLine: 'IOB: ' + display + 'U'
-    });
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.dayjs = ctx.dayjs;
+    this.translate = ctx.language.translate;
+    this.utils = require("../utils")(ctx);
   }
-  iob.isDeviceStatusAvailable = function isDeviceStatusAvailable (devicestatus) {
-    return Array.isArray(devicestatus) && devicestatus
-        .map(iob.fromDeviceStatus)
-        .filter(item => !utils.isEmpty(item))
-        .length > 0;
-  };
 
-  iob.lastIOBDeviceStatus = function lastIOBDeviceStatus(devicestatus, time) {
-    // Handle cases where devicestatus is undefined, null, or not an array
-    if (!Array.isArray(devicestatus)) {
-      return {};
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  setProperties(sbx) {
+    sbx.offerProperty("iob", () =>
+      this.calcTotal(
+        sbx.data.treatments,
+        sbx.data.devicestatus,
+        sbx.data.profile,
+        sbx.time
+      )
+    );
+  }
+
+  /**
+   * @param {import("../types").Treatment[]} treatments
+   * @param {import("../types").DeviceStatus[]} devicestatus
+   * @param {ReturnType<import("../profilefunctions")>} [profile]
+   * @param {number} time
+   * @param {string} [spec_profile]
+   */
+  calcTotal(
+    treatments,
+    devicestatus,
+    profile,
+    time = Date.now(),
+    spec_profile
+  ) {
+    /**
+     * @type {(NonNullable<
+     *       | ReturnType<IobPlugin["lastIOBDeviceStatus"]>
+     *       | ReturnType<IobPlugin["fromTreatments"]>
+     *     > & { treatmentIob?: number })
+     *   | undefined}
+     */
+    let result = this.lastIOBDeviceStatus(devicestatus, time);
+
+    const treatmentResult =
+      treatments !== undefined && treatments.length
+        ? this.fromTreatments(treatments, profile, time, spec_profile)
+        : undefined;
+
+    if (!result) {
+      result = treatmentResult;
+    } else if (result && treatmentResult?.iob) {
+      result.treatmentIob = +(
+        Math.round(Number(treatmentResult.iob + "e+3")) + "e-3"
+      );
     }
 
-    if (time && time.getTime) {
+    if (result?.iob)
+      result.iob = +(Math.round(Number(result.iob + "e+3")) + "e-3");
+
+    const ret = this.addDisplay(result);
+    return ret ?? /** @type {NonNullable<typeof ret>} */ ({});
+  }
+
+  /** @protected @template {{iob?:number}} T @param {T} [iob] */
+  addDisplay(iob) {
+    if (
+      typeof iob !== "object" ||
+      Object.keys(iob).length === 0 ||
+      iob.iob === undefined
+    ) {
+      return;
+    }
+    const display = this.utils.toFixed(iob.iob);
+    return {
+      ...iob,
+      display,
+      displayLine: `IOB: ${display}U`,
+    };
+  }
+
+  /** @param {import("../types").DeviceStatus[]} devicestatus */
+  isDeviceStatusAvailable(devicestatus) {
+    return (
+      devicestatus.map((d) => this.fromDeviceStatus(d)).filter((o) => !!o)
+        .length > 0
+    );
+  }
+
+  /**
+   * @param {import("../types").DeviceStatus[]} devicestatus
+   * @param {Date | number} time
+   */
+  lastIOBDeviceStatus(devicestatus, time) {
+    if (!devicestatus || !Array.isArray(devicestatus)) return;
+    if (time && typeof time !== "number" && "getTime" in time) {
       time = time.getTime();
     }
-    var futureMills = time + times.mins(5).msecs; //allow for clocks to be a little off
-    var recentMills = time - iob.RECENCY_THRESHOLD;
+    const futureMills = time + times.mins(5).msecs; //allow for clocks to be a little off
+    const recentMills = time - IobPlugin.RECENCY_THRESHOLD;
 
     // All IOBs
-    var iobs = devicestatus
-      .filter(function (iobStatus) {
-        return iobStatus.mills <= futureMills && iobStatus.mills >= recentMills;
-      })
-      .map(iob.fromDeviceStatus)
-      .filter(item => !utils.isEmpty(item))
-      .sort((a, b) => (a.mills || 0) - (b.mills || 0));    // Loop IOBs - Filter for Loop sourced IOBs
-    var loopIOBs = iobs.filter(function (iobStatus) {
-      return iobStatus.source === 'Loop';
-    });    // Loop uploads both Loop IOB and pump-reported IOB, prioritize Loop IOB if available
+    const iobs = devicestatus
+      .filter(
+        (iobStatus) =>
+          iobStatus.mills <= futureMills && iobStatus.mills >= recentMills
+      )
+      .map((s) => this.fromDeviceStatus(s))
+      .filter((o) => !!o)
+      .sort((a, b) => a.mills - b.mills);
 
-    // Get the most recent IOB entry, preferring Loop entries if available
-    return loopIOBs[loopIOBs.length - 1] || iobs[iobs.length - 1];
-  };
-  iob.IOBDeviceStatusesInTimeRange = function IOBDeviceStatusesInTimeRange (devicestatus, from, to) {
-    // Handle cases where devicestatus is undefined, null, or not an array
-    if (!Array.isArray(devicestatus)) {
-      return [];
-    }
+    // Loop IOBs
+    const loopIOBs = iobs.filter(({ source }) => source === "Loop");
 
+    // Loop uploads both Loop IOB and pump-reported IOB, prioritize Loop IOB if available
+    return loopIOBs.at(-1) ?? iobs.at(-1);
+  }
+
+  /**
+   * @param {import("../types").DeviceStatus[]} devicestatus
+   * @param {number} from
+   * @param {number} to
+   */
+  IOBDeviceStatusesInTimeRange(devicestatus, from, to) {
     return devicestatus
-      .filter(function (iobStatus) {
-        return iobStatus.mills > from && iobStatus.mills < to;
-      })
-      .map(iob.fromDeviceStatus)
-      .filter(item => !utils.isEmpty(item))
-      .sort((a, b) => (a.mills || 0) - (b.mills || 0));
-  };
-  iob.fromDeviceStatus = function fromDeviceStatus(devicestatusEntry) {
-    var iobOpenAPS = devicestatusEntry?.openaps?.iob;
-    var iobLoop = devicestatusEntry?.loop?.iob;
-    var iobPump = devicestatusEntry?.pump?.iob;
+      .filter(({ mills }) => mills > from && mills < to)
+      .map((s) => this.fromDeviceStatus(s))
+      .filter((o) => !!o)
+      .sort((a, b) => a.mills - b.mills);
+  }
 
-    if (typeof iobOpenAPS === 'object' && iobOpenAPS !== null) {
+  /** @param {import("../types").DeviceStatus} devicestatusEntry */
+  fromDeviceStatus(devicestatusEntry) {
+    let iobOpenAPS = devicestatusEntry?.openaps?.iob;
+    const iobLoop = devicestatusEntry?.loop?.iob;
+    const iobPump = devicestatusEntry?.pump?.iob;
 
+    if (!!iobOpenAPS) {
       //hacks to support AMA iob array with time fields instead of timestamp fields
       iobOpenAPS = Array.isArray(iobOpenAPS) ? iobOpenAPS[0] : iobOpenAPS;
 
       // array could still be empty, handle as null
-      if (utils.isEmpty(iobOpenAPS)) {
-        return {};
-      }
+      if (!Object.keys(iobOpenAPS).length) return;
 
       if (iobOpenAPS.time) {
         iobOpenAPS.timestamp = iobOpenAPS.time;
       }
 
       return {
-        iob: iobOpenAPS.iob
-        , basaliob: iobOpenAPS.basaliob
-        , activity: iobOpenAPS.activity
-        , source: 'OpenAPS'
-        , device: devicestatusEntry.device
-        , mills: dayjs(iobOpenAPS.timestamp).valueOf( )
+        iob: iobOpenAPS.iob,
+        basaliob: iobOpenAPS.basaliob,
+        activity: iobOpenAPS.activity,
+        source: /** @type {const} */ ("OpenAPS"),
+        device: devicestatusEntry.device,
+        mills: this.dayjs(iobOpenAPS.timestamp).valueOf(),
       };
-    } else if (typeof iobLoop === 'object' && iobLoop !== null) {
-      return {
-        iob: iobLoop.iob
-        , source: 'Loop'
-        , device: devicestatusEntry.device
-        , mills: dayjs(iobLoop.timestamp).valueOf( )
-      };
-    } else if (typeof iobPump === 'object' && iobPump !== null) {
-      return {
-        iob: iobPump.iob || iobPump.bolusiob
-        , source: devicestatusEntry.connect !== undefined ? 'MM Connect' : undefined
-        , device: devicestatusEntry.device
-        , mills: devicestatusEntry.mills
-      };
-    } else {
-      return {};
     }
-  };
 
-  iob.fromTreatments = function fromTreatments(treatments, profile, time, spec_profile) {
-    var totalIOB = 0
-      , totalActivity = 0;
+    if (!!iobLoop) {
+      return {
+        iob: iobLoop.iob,
+        source: /** @type {const} */ ("Loop"),
+        device: devicestatusEntry.device,
+        mills: this.dayjs(iobLoop.timestamp).valueOf(),
+      };
+    }
 
-    var lastBolus = null;
-    treatments?.forEach(function eachTreatment(treatment) {
-      if (treatment.mills <= time) {
-        var tIOB = iob.calcTreatment(treatment, profile, time, spec_profile);
-        if (tIOB.iobContrib > 0) {
-          lastBolus = treatment;
-        }
-        if (tIOB && tIOB.iobContrib) { totalIOB += tIOB.iobContrib; }
+    if (!!iobPump) {
+      return {
+        iob: iobPump.iob || iobPump.bolusiob,
+        source:
+          devicestatusEntry.connect !== undefined
+            ? /** @type {const} */ ("MM Connect")
+            : undefined,
+        device: devicestatusEntry.device,
+        mills: devicestatusEntry.mills,
+      };
+    }
+  }
+
+  /**
+   * @param {import("../types").Treatment[]} treatments
+   * @param {ReturnType<import("../profilefunctions")> | undefined} profile
+   * @param {number} time
+   * @param {string} [spec_profile]
+   */
+  fromTreatments(treatments, profile, time, spec_profile) {
+    const { totalIOB, totalActivity, lastBolus } = treatments.reduce(
+      (acc, treatment) => {
+        if (treatment.mills > time) return acc;
+
+        const tIOB = this.calcTreatment(treatment, profile, time, spec_profile);
+        if (!tIOB) return acc;
+
+        if (tIOB.iobContrib > 0) acc.lastBolus = treatment;
+        if (tIOB.iobContrib) acc.totalIOB += tIOB.iobContrib;
         // units: BG (mg/dL or mmol/L)
-        if (tIOB && tIOB.activityContrib) { totalActivity += tIOB.activityContrib; }
+        if (tIOB.activityContrib) acc.totalActivity += tIOB.activityContrib;
+
+        return acc;
+      },
+      {
+        totalIOB: 0,
+        totalActivity: 0,
+        /** @type {null | import("../types").Treatment} */
+        lastBolus: null,
       }
-    });
+    );
 
     return {
-      iob: +(Math.round(totalIOB + "e+3")  + "e-3")
-      , activity: totalActivity
-      , lastBolus: lastBolus
-      , source: translate('Care Portal')
+      iob: +(Math.round(Number(totalIOB + "e+3")) + "e-3"),
+      activity: totalActivity,
+      lastBolus: lastBolus,
+      source: this.translate("Care Portal"),
     };
-  };
+  }
 
-  iob.calcTreatment = function calcTreatment(treatment, profile, time, spec_profile) {
-
-    var dia = 3
-      , sens = 0;
-
-    if (profile !== undefined) {
-      dia = profile.getDIA(time, spec_profile) || 3;
-      sens = profile.getSensitivity(time, spec_profile);
+  /**
+   * @param {import("../types").Treatment} treatment
+   * @param {ReturnType<import("../profilefunctions")> | undefined} profile
+   * @param {number} time
+   * @param {string} [spec_profile]
+   */
+  calcTreatment(treatment, profile, time, spec_profile) {
+    if (!treatment.insulin) {
+      return {
+        iobContrib: 0,
+        activityContrib: 0,
+      };
     }
 
-    var scaleFactor = 3.0 / dia
-      , peak = 75
-      , result = {
-          iobContrib: 0
-          , activityContrib: 0
-        };
+    const dia = profile?.getDIA(time, spec_profile) ?? 3;
+    const sens = profile?.getSensitivity(time, spec_profile) ?? 0;
 
-    if (treatment.insulin) {
-      var bolusTime = treatment.mills;
-      var minAgo = scaleFactor * (time - bolusTime) / 1000 / 60;
+    const scaleFactor = 3.0 / dia;
+    const peak = 75;
 
-      if (minAgo < peak) {
-        var x1 = minAgo / 5 + 1;
-        result.iobContrib = treatment.insulin * (1 - 0.001852 * x1 * x1 + 0.001852 * x1);
+    const bolusTime = treatment.mills;
+    const minAgo = (scaleFactor * (time - bolusTime)) / 1000 / 60;
+
+    if (minAgo < peak) {
+      const x1 = minAgo / 5 + 1;
+      return {
+        iobContrib:
+          treatment.insulin * (1 - 0.001852 * x1 * x1 + 0.001852 * x1),
         // units: BG (mg/dL)  = (BG/U) *    U insulin     * scalar
-        result.activityContrib = sens * treatment.insulin * (2 / dia / 60 / peak) * minAgo;
-
-      } else if (minAgo < 180) {
-        var x2 = (minAgo - 75) / 5;
-        result.iobContrib = treatment.insulin * (0.001323 * x2 * x2 - 0.054233 * x2 + 0.55556);
-        result.activityContrib = sens * treatment.insulin * (2 / dia / 60 - (minAgo - peak) * 2 / dia / 60 / (60 * 3 - peak));
-      }
-
+        activityContrib:
+          sens * treatment.insulin * (2 / dia / 60 / peak) * minAgo,
+      };
+    }
+    if (minAgo < 180) {
+      const x2 = (minAgo - 75) / 5;
+      return {
+        iobContrib:
+          treatment.insulin * (0.001323 * x2 * x2 - 0.054233 * x2 + 0.55556),
+        activityContrib:
+          sens *
+          treatment.insulin *
+          (2 / dia / 60 - ((minAgo - peak) * 2) / dia / 60 / (60 * 3 - peak)),
+      };
     }
 
-    return result;
-
-  };
-
-  iob.updateVisualisation = function updateVisualisation(sbx) {
-    var info = [];
-
-    var prop = sbx.properties.iob;
-
-    if (prop.lastBolus) {
-      var when = new Date(prop.lastBolus.mills).toLocaleTimeString();
-      var amount = sbx.roundInsulinForDisplayFormat(Number(prop.lastBolus.insulin)) + 'U';
-      info.push({ label: translate('Last Bolus'), value: amount + ' @ ' + when });
-    }
-    if (prop.basaliob !== undefined) {
-      info.push({ label: translate('Basal IOB'), value: prop.basaliob.toFixed(2) });
-    }
-    if (prop.source !== undefined) {
-      info.push({ label: translate('Source'), value: prop.source });
-    }
-    if (prop.device !== undefined) {
-      info.push({ label: translate('Device'), value: prop.device });
-    }
-
-    if (prop.treatmentIob !== undefined) {
-      info.push({label: '------------', value: ''});
-      info.push({ label: translate('Careportal IOB'), value: prop.treatmentIob.toFixed(2) });
-    }
-
-    var value = (prop.display !== undefined ? sbx.roundInsulinForDisplayFormat(prop.display) : '---') + 'U';
-
-    sbx.pluginBase.updatePillText(iob, {
-      value: value
-      , label: translate('IOB')
-      , info: info
-    });
-
-  };
-
-  function virtAsstIOBIntentHandler (callback, slots, sbx) {
-
-    var message = translate('virtAsstIobIntent', {
-      params: [
-          getIob(sbx)
-      ]
-    });
-    callback(translate('virtAsstTitleCurrentIOB'), message);
+    return {
+      iobContrib: 0,
+      activityContrib: 0,
+    };
   }
 
-  function virtAsstIOBRollupHandler (slots, sbx, callback) {
-    var iob = getIob(sbx);
-    var message = translate('virtAsstIob', {
-      params: [iob]
-    });
-    callback(null, {results: message, priority: 2});
-  }
-  function getIob(sbx) {
-    var iob = sbx?.properties?.iob?.iob;
-    if (iob !== 0) {
-      return translate('virtAsstIobUnits', {
-        params: [
-            utils.toFixed(iob)
-        ]
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    const info = [];
+
+    const prop = sbx.properties.iob;
+
+    if (prop && "lastBolus" in prop && prop.lastBolus) {
+      const when = new Date(prop.lastBolus.mills).toLocaleTimeString();
+      const amount =
+        sbx.roundInsulinForDisplayFormat(Number(prop.lastBolus.insulin)) + "U";
+      info.push({
+        label: this.translate("Last Bolus"),
+        value: amount + " @ " + when,
       });
     }
-    return translate('virtAsstNoInsulin');
+
+    if (prop && "basaliob" in prop && prop.basaliob !== undefined) {
+      info.push({
+        label: this.translate("Basal IOB"),
+        value: prop.basaliob.toFixed(2),
+      });
+    }
+
+    if (prop && "source" in prop && prop.source !== undefined) {
+      info.push({ label: this.translate("Source"), value: prop.source });
+    }
+
+    if (prop && "device" in prop && prop.device !== undefined) {
+      info.push({ label: this.translate("Device"), value: prop.device });
+    }
+
+    if (prop && "treatmentIob" in prop && prop.treatmentIob !== undefined) {
+      info.push({ label: "------------", value: "" });
+      info.push({
+        label: this.translate("Careportal IOB"),
+        value: prop.treatmentIob.toFixed(2),
+      });
+    }
+
+    const value =
+      (prop?.display !== undefined
+        ? sbx.roundInsulinForDisplayFormat(+prop.display)
+        : "---") + "U";
+
+    sbx.pluginBase.updatePillText(this, {
+      value: value,
+      label: this.translate("IOB"),
+      info: info,
+    });
   }
 
-  iob.virtAsst = {
-    rollupHandlers: [{
-      rollupGroup: 'Status'
-      , rollupName: 'current iob'
-      , rollupHandler: virtAsstIOBRollupHandler
-    }]
-    , intentHandlers: [{
-      intent: 'MetricNow'
-      , metrics: ['iob', 'insulin on board']
-      , intentHandler: virtAsstIOBIntentHandler
-    }]
+  /** @protected @type {import("../types").VirtAsstIntentHandlerFn} */
+  virtAsstIOBIntentHandler(callback, _slots, sbx) {
+    const message = this.translate("virtAsstIobIntent", {
+      params: [this.getIob(sbx)],
+    });
+    callback(this.translate("virtAsstTitleCurrentIOB"), message);
+  }
+
+  /** @protected @type {import("../types").VirtAsstRollupHandlerFn} */
+  virtAsstIOBRollupHandler(_slots, sbx, callback) {
+    const iob = this.getIob(sbx);
+    const message = this.translate("virtAsstIob", {
+      params: [iob],
+    });
+    callback(null, { results: message, priority: 2 });
+  }
+
+  /** @protected @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  getIob(sbx) {
+    const iob = sbx.properties.iob?.iob;
+    if (iob) {
+      return this.translate("virtAsstIobUnits", {
+        params: [this.utils.toFixed(iob)],
+      });
+    }
+    return this.translate("virtAsstNoInsulin");
+  }
+
+  virtAsst = {
+    rollupHandlers: [
+      {
+        rollupGroup: "Status",
+        rollupName: "current iob",
+        rollupHandler: this.virtAsstIOBRollupHandler.bind(this),
+      },
+    ],
+    intentHandlers: [
+      {
+        intent: "MetricNow",
+        metrics: ["iob", "insulin on board"],
+        intentHandler: this.virtAsstIOBIntentHandler.bind(this),
+      },
+    ],
   };
-
-  return iob;
-
 }
 
-module.exports = init;
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new IobPlugin(ctx);

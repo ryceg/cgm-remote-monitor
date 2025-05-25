@@ -1,80 +1,87 @@
-'use strict';
+"use strict";
 
-function init() {
+/** @typedef {ReturnType<Direction["info"]>} DirectionProperties */
 
-  var direction = {
-    name: 'direction'
-    , label: 'BG direction'
-    , pluginType: 'bg-status'
-  };
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class Direction {
+  name = /** @type {const} */ ("direction");
+  label = "BG direction";
+  pluginType = "bg-status";
 
-  direction.setProperties = function setProperties (sbx) {
-    sbx.offerProperty('direction', function setDirection ( ) {
-      if (!sbx.isCurrent(sbx.lastSGVEntry())) {
-        return undefined;
-      } else {
-        return direction.info(sbx.lastSGVEntry());
-      }
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.ctx = ctx;
+  }
+
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  setProperties(sbx) {
+    sbx.offerProperty("direction", () => {
+      if (!sbx.isCurrent(sbx.lastSGVEntry())) return;
+
+      return this.info(sbx.lastSGVEntry());
     });
-  };
+  }
 
-  direction.updateVisualisation = function updateVisualisation (sbx) {
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
     var prop = sbx.properties.direction;
 
     if (!prop || !prop.value) {
-      sbx.pluginBase.updatePillText(direction, {
-        hide: true
+      sbx.pluginBase.updatePillText(this, {
+        hide: true,
       });
     } else {
-      if (sbx.lastSGVMgdl() < 39) {
-        prop.value = 'CGM ERROR';
-        prop.label = '✖';
+      if ((sbx.lastSGVMgdl() ?? NaN) < 39) {
+        prop.value = "CGM ERROR";
+        prop.label = "✖";
       }
 
-      sbx.pluginBase.updatePillText(direction, {
-        label: prop && prop.label + '&#xfe0e;'
-        , directHTML: true
+      sbx.pluginBase.updatePillText(this, {
+        label: prop && prop.label + "&#xfe0e;",
+        directHTML: true,
       });
     }
-  };
-
-  direction.info = function info(sgv) {
-    var result = { display: null };
-
-    if (!sgv) { return result; }
-
-    result.value = sgv.direction;
-    result.label = directionToChar(result.value);
-    result.entity = charToEntity(result.label);
-
-    return result;
-  };
-
-  var dir2Char = {
-    NONE: '⇼'
-    , TripleUp: '⤊'
-    , DoubleUp: '⇈'
-    , SingleUp: '↑'
-    , FortyFiveUp: '↗'
-    , Flat: '→'
-    , FortyFiveDown: '↘'
-    , SingleDown: '↓'
-    , DoubleDown: '⇊'
-    , TripleDown: '⤋'
-    , 'NOT COMPUTABLE': '-'
-    , 'RATE OUT OF RANGE': '⇕'
-  };
-
-  function charToEntity(char) {
-    return char && char.length && '&#' + char.charCodeAt(0) + ';';
   }
 
-  function directionToChar(direction) {
-    return dir2Char[direction] || '-';
+  /** @param {import("../types").Sgv} [sgv] */
+  info(sgv) {
+    if (!sgv) return { display: null };
+
+    return {
+      value: sgv.direction,
+      label: this.directionToChar(sgv.direction),
+      entity: this.charToEntity(this.directionToChar(sgv.direction)),
+    };
   }
 
-  return direction;
+  /** @type {Partial<Record<string, string>>} @protected */
+  static dir2Char = {
+    NONE: "⇼",
+    TripleUp: "⤊",
+    DoubleUp: "⇈",
+    SingleUp: "↑",
+    FortyFiveUp: "↗",
+    Flat: "→",
+    FortyFiveDown: "↘",
+    SingleDown: "↓",
+    DoubleDown: "⇊",
+    TripleDown: "⤋",
+    "NOT COMPUTABLE": "-",
+    "RATE OUT OF RANGE": "⇕",
+  };
 
+  /** @param {string} [char] @protected */
+  charToEntity(char) {
+    return char && char.length && "&#" + char.charCodeAt(0) + ";";
+  }
+
+  /** @param {string} [direction] @protected */
+  directionToChar(direction) {
+    if(!direction) return "-";
+    return Direction.dir2Char[direction] || "-";
+  }
 }
 
-module.exports = init;
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new Direction(ctx);

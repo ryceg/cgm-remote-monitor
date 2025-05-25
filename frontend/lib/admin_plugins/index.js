@@ -78,7 +78,6 @@ function init(ctx) {
   };
 
   return plugins();
-
 }
 
 module.exports = init;

@@ -1,71 +1,95 @@
-'use strict';
+"use strict";
 
-function init(ctx) {
-  var utils = require('../utils')(ctx);
-  var dayjs = ctx.dayjs;
-  var translate = ctx.language.translate;
-  var levels = ctx.levels;
+/** @typedef {ReturnType<CannulaAgePlugin["findLatestTimeChange"]>} CAgeProperties */
 
-  var cage = {
-    name: 'cage'
-    , label: 'Cannula Age'
-    , pluginType: 'pill-minor'
-  };
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class CannulaAgePlugin {
+  name = /** @type {const} */ ("cage");
+  label = "Cannula Age";
+  pluginType = "pill-minor";
 
-  cage.getPrefs = function getPrefs (sbx) {
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.dayjs = ctx.dayjs;
+    this.translate = ctx.language.translate;
+    this.levels = ctx.levels;
+  }
+
+  /** @param {ReturnType<import("../sandbox")>} sbx */
+  getPrefs(sbx) {
     // CAGE_INFO = 44 CAGE_WARN=48 CAGE_URGENT=70
     return {
-      info: sbx.extendedSettings.info || 44
-      , warn: sbx.extendedSettings.warn || 48
-      , urgent: sbx.extendedSettings.urgent || 72
-      , display: sbx.extendedSettings.display ? sbx.extendedSettings.display : 'hours'
-      , enableAlerts: sbx.extendedSettings.enableAlerts || false
+      info: sbx.extendedSettings.info || 44,
+      warn: sbx.extendedSettings.warn || 48,
+      urgent: sbx.extendedSettings.urgent || 72,
+      display: sbx.extendedSettings.display
+        ? sbx.extendedSettings.display
+        : "hours",
+      enableAlerts: sbx.extendedSettings.enableAlerts || false,
     };
-  };
+  }
 
-  cage.setProperties = function setProperties (sbx) {
-    sbx.offerProperty('cage', function setProp ( ) {
-      return cage.findLatestTimeChange(sbx);
-    });
-  };
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  setProperties(sbx) {
+    sbx.offerProperty("cage", () => this.findLatestTimeChange(sbx));
+  }
 
-  cage.checkNotifications = function checkNotifications (sbx) {
-    var cannulaInfo = sbx.properties.cage;
-    if (cannulaInfo.notification) {
-      var notification = Object.assign({}, cannulaInfo.notification, {
-        plugin: cage
-        , debug: {
-          age: cannulaInfo.age
-        }
-      });
+  /** @param {import("../sandbox").InitializedSandbox} sbx */
+  checkNotifications(sbx) {
+    const cannulaInfo = sbx.properties.cage;
+
+    if (cannulaInfo?.notification) {
+      const notification = {
+        ...cannulaInfo.notification,
+        plugin: this,
+        debug: {
+          age: cannulaInfo.age,
+        },
+      };
       sbx.notifications.requestNotify(notification);
     }
-  };
+  }
 
-  cage.findLatestTimeChange = function findLatestTimeChange (sbx) {
+  /** @param {ReturnType<import("../sandbox")>} sbx */
+  findLatestTimeChange(sbx) {
+    const prefs = this.getPrefs(sbx);
 
-    var prefs = cage.getPrefs(sbx);
-
-    var cannulaInfo = {
-      found: false
-      , age: 0
-      , treatmentDate: null
-      , checkForAlert: false
+    const cannulaInfo = {
+      found: false,
+      age: 0,
+      /** @type {number | null} */
+      treatmentDate: null,
+      checkForAlert: false,
+      /** @type {number | undefined} */
+      days: undefined,
+      /** @type {number | undefined} */
+      hours: undefined,
+      /** @type {string | undefined} */
+      notes: undefined,
+      /** @type {number | undefined} */
+      minFractions: undefined,
+      /** @type {import("../types").Level} */
+      level: this.levels.NONE,
+      /** @type {import("../types").Notify | undefined} */
+      notification: undefined,
+      /** @type {string | undefined} */
+      display: undefined,
     };
-    var prevDate = 0;
 
-    sbx.data.sitechangeTreatments?.forEach(function eachTreatment (treatment) {
-      var treatmentDate = treatment.mills;
+    let prevDate = 0;
+
+    sbx.data.sitechangeTreatments?.forEach((treatment) => {
+      const treatmentDate = treatment.mills;
       if (treatmentDate > prevDate && treatmentDate <= sbx.time) {
-
         prevDate = treatmentDate;
         cannulaInfo.treatmentDate = treatmentDate;
 
-        var a = dayjs(sbx.time);
-        var b = dayjs(cannulaInfo.treatmentDate);
-        var days = a.diff(b,'days');
-        var hours = a.diff(b,'hours') - days * 24;
-        var age = a.diff(b,'hours');
+        const a = this.dayjs(sbx.time);
+        const b = this.dayjs(cannulaInfo.treatmentDate);
+        const days = a.diff(b, "days");
+        const hours = a.diff(b, "hours") - days * 24;
+        const age = a.diff(b, "hours");
 
         if (!cannulaInfo.found || (age >= 0 && age < cannulaInfo.age)) {
           cannulaInfo.found = true;
@@ -73,82 +97,92 @@ function init(ctx) {
           cannulaInfo.days = days;
           cannulaInfo.hours = hours;
           cannulaInfo.notes = treatment.notes;
-          cannulaInfo.minFractions = a.diff(b,'minutes') - age * 60;
+          cannulaInfo.minFractions = a.diff(b, "minutes") - age * 60;
         }
       }
     });
 
-    cannulaInfo.level = levels.NONE;
-
-    var sound = 'incoming';
-    var message;
-    var sendNotification = false;
+    let sound = "incoming";
+    let message = "";
+    let sendNotification = false;
 
     if (cannulaInfo.age >= prefs.urgent) {
       sendNotification = cannulaInfo.age === prefs.urgent;
-      message = translate('Cannula change overdue!');
-      sound = 'persistent';
-      cannulaInfo.level = levels.URGENT;
+      message = this.translate("Cannula change overdue!");
+      sound = "persistent";
+      cannulaInfo.level = this.levels.URGENT;
     } else if (cannulaInfo.age >= prefs.warn) {
       sendNotification = cannulaInfo.age === prefs.warn;
-      message = translate('Time to change cannula');
-      cannulaInfo.level = levels.WARN;
-    } else  if (cannulaInfo.age >= prefs.info) {
+      message = this.translate("Time to change cannula");
+      cannulaInfo.level = this.levels.WARN;
+    } else if (cannulaInfo.age >= prefs.info) {
       sendNotification = cannulaInfo.age === prefs.info;
-      message = 'Change cannula soon';
-      cannulaInfo.level = levels.INFO;
+      message = "Change cannula soon";
+      cannulaInfo.level = this.levels.INFO;
     }
 
-    if (prefs.display === 'days' && cannulaInfo.found) {
-      cannulaInfo.display = '';
+    if (prefs.display === "days" && cannulaInfo.found) {
+      cannulaInfo.display = "";
       if (cannulaInfo.age >= 24) {
-        cannulaInfo.display += cannulaInfo.days + 'd';
+        cannulaInfo.display += cannulaInfo.days + "d";
       }
-      cannulaInfo.display += cannulaInfo.hours + 'h';
+      cannulaInfo.display += cannulaInfo.hours + "h";
     } else {
-      cannulaInfo.display = cannulaInfo.found ? cannulaInfo.age + 'h' : 'n/a ';
+      cannulaInfo.display = cannulaInfo.found ? cannulaInfo.age + "h" : "n/a ";
     }
 
     //allow for 20 minute period after a full hour during which we'll alert the user
-    if (prefs.enableAlerts && sendNotification && cannulaInfo.minFractions <= 20) {
+    if (
+      prefs.enableAlerts &&
+      sendNotification &&
+      (cannulaInfo.minFractions ?? 0) <= 20
+    ) {
       cannulaInfo.notification = {
-        title: translate('Cannula age %1 hours', { params: [cannulaInfo.age] })
-        , message: message
-        , pushoverSound: sound
-        , level: cannulaInfo.level
-        , group: 'CAGE'
+        title: this.translate("Cannula age %1 hours", {
+          params: [cannulaInfo.age.toString()],
+        }),
+        message: message,
+        pushoverSound: sound,
+        level: cannulaInfo.level,
+        group: "CAGE",
       };
     }
 
     return cannulaInfo;
-  };
+  }
 
-  cage.updateVisualisation = function updateVisualisation (sbx) {
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    const cannulaInfo = sbx.properties.cage;
+    if (!cannulaInfo) return;
 
-    var cannulaInfo = sbx.properties.cage;
+    const info = [
+      {
+        label: this.translate("Inserted"),
+        value: new Date(cannulaInfo.treatmentDate ?? NaN).toLocaleString(),
+      },
+    ];
 
-    var info = [{ label: translate('Inserted'), value: new Date(cannulaInfo.treatmentDate).toLocaleString() }];
-
-    if (!utils.isEmpty(cannulaInfo.notes)) {
-      info.push({label: translate('Notes') + ':', value: cannulaInfo.notes});
+    if (cannulaInfo.notes) {
+      info.push({
+        label: this.translate("Notes") + ":",
+        value: cannulaInfo.notes ?? "",
+      });
     }
 
-    var statusClass = null;
-    if (cannulaInfo.level === levels.URGENT) {
-      statusClass = 'urgent';
-    } else if (cannulaInfo.level === levels.WARN) {
-      statusClass = 'warn';
-    }
+    const statusClass =
+      (cannulaInfo.level === this.levels.URGENT && "urgent") ||
+      (cannulaInfo.level === this.levels.WARN && "warn") ||
+      undefined;
 
-    sbx.pluginBase.updatePillText(cage, {
-      value: cannulaInfo.display
-      , label: translate('CAGE')
-      , info: info
-      , pillClass: statusClass
+    sbx.pluginBase.updatePillText(this, {
+      value: cannulaInfo.display,
+      label: this.translate("CAGE"),
+      info: info,
+      pillClass: statusClass,
     });
-  };
-  return cage;
+  }
 }
 
-module.exports = init;
-
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new CannulaAgePlugin(ctx);

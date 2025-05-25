@@ -1,327 +1,452 @@
-'use strict';
+"use strict";
 
-var times = require('../times');
+const times = require("../times");
 
-function init (ctx) {
-  var dayjs = ctx.dayjs;
-  var translate = ctx.language.translate;
-  var utils = require('../utils')(ctx);
-  var iob = require('./iob')(ctx);
+/** @typedef {ReturnType<CobPlugin["cobTotal"]>} CobProperties */
 
-  var cob = {
-    name: 'cob'
-    , label: 'Carbs-on-Board'
-    , pluginType: 'pill-minor'
-  };
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class CobPlugin {
+  name = /** @type {const} */ ("cob");
+  label = "Carbs-on-Board";
+  pluginType = "pill-minor";
 
-  cob.RECENCY_THRESHOLD = times.mins(30).msecs;
+  static RECENCY_THRESHOLD = times.mins(30).msecs;
 
-  cob.setProperties = function setProperties (sbx) {
-    sbx.offerProperty('cob', function setCOB () {
-      return cob.cobTotal(sbx.data.treatments, sbx.data.devicestatus, sbx.data.profile, sbx.time);
-    });
-  };
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.dayjs = ctx.dayjs;
+    this.translate = ctx.language.translate;
+    this.iob = require("./iob")(ctx);
+  }
 
-  cob.cobTotal = function cobTotal (treatments, devicestatus, profile, time, spec_profile) {
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  setProperties(sbx) {
+    sbx.offerProperty("cob", () =>
+      this.cobTotal(
+        sbx.data.treatments,
+        sbx.data.devicestatus,
+        sbx.data.profile,
+        sbx.time
+      )
+    );
+  }
 
-    if (!profile || !profile?.hasData()) {
-      console.warn('For the COB plugin to function you need a treatment profile');
+  /**
+   * @param {import("../types").Treatment[] | undefined} treatments
+   * @param {import("../types").DeviceStatus[]} devicestatus
+   * @param {ReturnType<import("../profilefunctions")> | undefined} profile
+   * @param {number | Date} [time]
+   * @param {string} [spec_profile]
+   * @returns {Partial<
+   *   ReturnType<CobPlugin["lastCOBDeviceStatus" | "fromTreatments"]>
+   * > & { treatmentCOB?: Partial<ReturnType<CobPlugin["fromTreatments"]>> }}
+   */
+  cobTotal(treatments, devicestatus, profile, time, spec_profile) {
+    if (!profile || !profile.hasData()) {
+      console.warn(
+        "For the COB plugin to function you need a treatment profile"
+      );
       return {};
     }
 
-    if (!profile?.getSensitivity(time, spec_profile) || !profile?.getCarbRatio(time, spec_profile)) {
-      console.warn('For the COB plugin to function your treatment profile must have both sens and carbratio fields');
+    if (
+      !profile.getSensitivity(time, spec_profile) ||
+      !profile.getCarbRatio(time, spec_profile)
+    ) {
+      console.warn(
+        "For the COB plugin to function your treatment profile must have both sens and carbratio fields"
+      );
       return {};
     }
 
-    if (typeof time === 'undefined') {
+    if (typeof time === "undefined") {
       time = Date.now();
-    } else if (time && time.getTime) {
+    } else if (time && typeof time === "object" && "getTime" in time) {
       time = time.getTime();
     }
 
-    var devicestatusCOB = cob.lastCOBDeviceStatus(devicestatus, time);
-    var result = devicestatusCOB;
-
-    const TEN_MINUTES = 10 * 60 * 1000;
-    if (!result || Object.keys(result).length === 0 || result.cob == null || (Date.now() - result.mills) > TEN_MINUTES) {
-      var treatmentCOB = (treatments !== undefined && treatments.length) ? cob.fromTreatments(treatments, devicestatus, profile, time, spec_profile) : {};
-
-      // Create deep copies using JSON parse/stringify - safe since we only have data (no functions/dates)
-      result = JSON.parse(JSON.stringify(treatmentCOB));
-      result.source = 'Care Portal';
-      result.treatmentCOB = JSON.parse(JSON.stringify(treatmentCOB));
+    const devicestatusCOB = this.lastCOBDeviceStatus(devicestatus, time);
+    if (
+      devicestatusCOB &&
+      typeof devicestatusCOB?.cob == "number" &&
+      Date.now() - devicestatusCOB.mills <= times.mins(10).msecs
+    ) {
+      return this.addDisplay(devicestatusCOB);
+    } else {
+      /** @type {Partial<ReturnType<CobPlugin["fromTreatments"]>>} */
+      const treatmentCOB =
+        treatments !== undefined && treatments.length
+          ? this.fromTreatments(
+              treatments,
+              devicestatus,
+              profile,
+              time,
+              spec_profile
+            )
+          : {};
+      return {
+        ...structuredClone(treatmentCOB),
+        source: "Care Portal",
+        treatmentCOB: structuredClone(treatmentCOB),
+      };
     }
-
-    return addDisplay(result);
-  };
-  function addDisplay (cob) {
-    if (!cob || Object.keys(cob).length === 0 || cob.cob === undefined) {
-      return {};
-    }
-
-    var display = Math.round(cob.cob * 10) / 10;
-    return Object.assign({}, cob, {
-      display: display
-      , displayLine: 'COB: ' + display + 'g'
-    });
   }
-  cob.isDeviceStatusAvailable = function isDeviceStatusAvailable (devicestatus) {
-    return Array.isArray(devicestatus) && devicestatus
-      .map(cob.fromDeviceStatus)
-      .filter(item => !utils.isEmpty(item))
-      .length > 0;
-  };
 
-  cob.lastCOBDeviceStatus = function lastCOBDeviceStatus (devicestatus, time) {
-    // Handle cases where devicestatus is undefined, null, or not an array
-    if (!Array.isArray(devicestatus)) {
+  /** @protected @param {ReturnType<CobPlugin['lastCOBDeviceStatus']>} cob */
+  addDisplay(cob) {
+    if (!cob || cob.cob === undefined) {
       return {};
     }
 
-    var futureMills = time + times.mins(5).msecs; //allow for clocks to be a little off
-    var recentMills = time - cob.RECENCY_THRESHOLD;
-    const filteredResults = devicestatus
-      .filter(function(cobStatus) {
-        return cobStatus.mills <= futureMills && cobStatus.mills >= recentMills;
-      })
-      .map(cob.fromDeviceStatus)
-      .filter(item => !utils.isEmpty(item))
-      .sort((a, b) => (a.mills || 0) - (b.mills || 0));
+    const display = Math.round(cob.cob * 10) / 10;
+    return {
+      ...cob,
+      display: display,
+      displayLine: "COB: " + display + "g",
+    };
+  }
 
-    return filteredResults?.[filteredResults.length - 1];
-  };
-  cob.COBDeviceStatusesInTimeRange = function COBDeviceStatusesInTimeRange (devicestatus, from, to) {
-    // Handle cases where devicestatus is undefined, null, or not an array
-    if (!Array.isArray(devicestatus)) {
-      return [];
-    }
+  /** @param {import("../types").DeviceStatus[]} devicestatus */
+  isDeviceStatusAvailable(devicestatus) {
+    return (
+      devicestatus.map((s) => this.fromDeviceStatus(s)).filter((o) => !!o)
+        .length > 0
+    );
+  }
+
+  /**
+   * @param {import("../types").DeviceStatus[]} devicestatus
+   * @param {number} time
+   */
+  lastCOBDeviceStatus(devicestatus = [], time) {
+    const futureMills = time + times.mins(5).msecs; //allow for clocks to be a little off
+    const recentMills = time - CobPlugin.RECENCY_THRESHOLD;
 
     return devicestatus
-      .filter(function(cobStatus) {
-        return cobStatus.mills > from && cobStatus.mills < to;
-      })
-      .map(cob.fromDeviceStatus)
-      .filter(item => !utils.isEmpty(item))
-      .sort((a, b) => (a.mills || 0) - (b.mills || 0));
-  };
+      .filter(({ mills }) => recentMills <= mills && mills <= futureMills)
+      .map((s) => this.fromDeviceStatus(s))
+      .filter((o) => !!o)
+      .sort((a, b) => a.mills - b.mills)
+      .at(-1);
+  }
 
-  cob.fromDeviceStatus = function fromDeviceStatus (devicestatusEntry) {
+  /**
+   * @param {import("../types").DeviceStatus[]} devicestatus
+   * @param {number} from
+   * @param {number} to
+   */
+  COBDeviceStatusesInTimeRange(devicestatus, from, to) {
+    return devicestatus
+      .filter(({ mills }) => from <= mills && mills < to)
+      .map((s) => this.fromDeviceStatus(s))
+      .filter((o) => !!o)
+      .sort((a, b) => a.mills - b.mills);
+  }
 
-    var cobObj;
-    if (devicestatusEntry?.openaps !== undefined) {
-      var suggested = devicestatusEntry.openaps.suggested;
-      var enacted = devicestatusEntry.openaps.enacted;
-
-      var lastCOB = null;
-      var lastMoment = null;
-
-      if (suggested && enacted) {
-        var suggestedMoment = dayjs(suggested.timestamp);
-        var enactedMoment = dayjs(enacted.timestamp);
-        if (enactedMoment.isAfter(suggestedMoment)) {
-          lastCOB = enacted.COB;
-          lastMoment = enactedMoment;
-        } else {
-          lastCOB = suggested.COB;
-          lastMoment = suggestedMoment;
-        }
-      } else if (enacted) {
-        lastCOB = enacted.COB;
-        lastMoment = dayjs(enacted.timestamp);
-      } else if (suggested) {
-        lastCOB = suggested.COB;
-        lastMoment = dayjs(suggested.timestamp);
+  /**
+   * @param {Pick<
+   *   import("../types").DeviceStatus["openaps"],
+   *   "enacted" | "suggested"
+   * >} arg
+   * @protected
+   */
+  latCobFromOpenAps({ suggested, enacted }) {
+    if (suggested && enacted) {
+      const suggestedMoment = this.dayjs(suggested.timestamp);
+      const enactedMoment = this.dayjs(enacted.timestamp);
+      if (enactedMoment.isAfter(suggestedMoment)) {
+        return {
+          lastCOB: enacted.COB,
+          lastMoment: enactedMoment,
+        };
+      } else {
+        return {
+          lastCOB: suggested.COB,
+          lastMoment: suggestedMoment,
+        };
       }
-
-      if (lastCOB === null || !lastMoment) {
-        return {};
-      }
-
+    } else if (enacted) {
       return {
-        cob: lastCOB
-        , source: 'OpenAPS'
-        , device: devicestatusEntry.device
-        , mills: lastMoment.valueOf()
+        lastCOB: enacted.COB,
+        lastMoment: this.dayjs(enacted.timestamp),
       };
-    } else if (devicestatusEntry?.loop?.cob !== undefined) {
-      cobObj = devicestatusEntry.loop.cob;
+    } else if (suggested) {
       return {
-        cob: cobObj.cob
-        , source: 'Loop'
-        , device: devicestatusEntry.device
-        , mills: dayjs(cobObj.timestamp).valueOf()
+        lastCOB: suggested.COB,
+        lastMoment: this.dayjs(suggested.timestamp),
       };
-    } else {
-      return {};
     }
-  };
+  }
 
-  cob.fromTreatments = function fromTreatments (treatments, devicestatus, profile, time, spec_profile) {
+  /** @param {import("../types").DeviceStatus} devicestatusEntry */
+  fromDeviceStatus(devicestatusEntry) {
+    if (devicestatusEntry.openaps) {
+      const suggested = devicestatusEntry.openaps.suggested;
+      const enacted = devicestatusEntry.openaps.enacted;
+
+      const { lastCOB, lastMoment } =
+        this.latCobFromOpenAps({
+          suggested,
+          enacted,
+        }) ?? {};
+
+      if ((!lastCOB && lastCOB !== 0) || !lastMoment) return;
+
+      return {
+        cob: lastCOB,
+        source: "OpenAPS",
+        device: devicestatusEntry.device,
+        mills: lastMoment.valueOf(),
+      };
+    } else if (devicestatusEntry.loop?.cob) {
+      return {
+        cob: devicestatusEntry.loop.cob.cob,
+        source: "Loop",
+        device: devicestatusEntry.device,
+        mills: this.dayjs(devicestatusEntry.loop.cob.timestamp).valueOf(),
+      };
+    }
+  }
+
+  /**
+   * @param {import("../types").Treatment[]} treatments
+   * @param {import("../types").DeviceStatus[]} devicestatus
+   * @param {ReturnType<import("../profilefunctions")>} profile
+   * @param {number} time
+   * @param {string} [spec_profile]
+   * @returns
+   */
+  fromTreatments(treatments, devicestatus, profile, time, spec_profile) {
     // TODO: figure out the liverSensRatio that gives the most accurate purple line predictions
     var liverSensRatio = 8;
     var totalCOB = 0;
+    /** @type {import("../types").Treatment | null} */
     var lastCarbs = null;
 
     var isDecaying = 0;
     var lastDecayedBy = 0;
 
-    treatments?.forEach(function eachTreatment (treatment) {
+    treatments.forEach((treatment) => {
+      const carbAbsoprtionRate =
+        profile.getCarbAbsorptionRate(treatment.mills, spec_profile) ?? NaN;
+
       if (treatment.carbs && treatment.mills < time) {
         lastCarbs = treatment;
-        var cCalc = cob.cobCalc(treatment, profile, lastDecayedBy, time, spec_profile);
-        var decaysin_hr = (cCalc.decayedBy - time) / 1000 / 60 / 60;
+        const cCalc = this.cobCalc(
+          treatment,
+          profile,
+          lastDecayedBy,
+          time,
+          spec_profile
+        );
+        if (!cCalc) return;
+        var decaysin_hr = (+cCalc.decayedBy - time) / 1000 / 60 / 60;
         if (decaysin_hr > -10) {
           // units: BG
-          var actStart = iob.calcTotal(treatments, devicestatus, profile, lastDecayedBy, spec_profile).activity;
-          var actEnd = iob.calcTotal(treatments, devicestatus, profile, cCalc.decayedBy, spec_profile).activity;
-          var avgActivity = (actStart + actEnd) / 2;
+          const actStart =
+            this.iob.calcTotal(
+              treatments,
+              devicestatus,
+              profile,
+              lastDecayedBy,
+              spec_profile
+            ).activity ?? NaN;
+          const actEnd =
+            this.iob.calcTotal(
+              treatments,
+              devicestatus,
+              profile,
+              +cCalc.decayedBy,
+              spec_profile
+            ).activity ?? NaN;
+          const avgActivity = (actStart + actEnd) / 2;
+
           // units:  g     =       BG      *      scalar     /          BG / U                           *     g / U
-          var delayedCarbs = (avgActivity * liverSensRatio / profile.getSensitivity(treatment.mills, spec_profile)) * profile.getCarbRatio(treatment.mills, spec_profile);
-          var delayMinutes = Math.round(delayedCarbs / profile.getCarbAbsorptionRate(treatment.mills, spec_profile) * 60);
+          const sens =
+            profile.getSensitivity(treatment.mills, spec_profile) ?? NaN;
+          const carbRatio =
+            profile.getCarbRatio(treatment.mills, spec_profile) ?? NaN;
+
+          const delayedCarbs =
+            carbRatio * ((avgActivity * liverSensRatio) / sens);
+          const delayMinutes = Math.round(
+            (delayedCarbs / carbAbsoprtionRate) * 60
+          );
           if (delayMinutes > 0) {
-            cCalc.decayedBy.setMinutes(cCalc.decayedBy.getMinutes() + delayMinutes);
-            decaysin_hr = (cCalc.decayedBy - time) / 1000 / 60 / 60;
+            cCalc.decayedBy.setMinutes(
+              cCalc.decayedBy.getMinutes() + delayMinutes
+            );
+            decaysin_hr = (+cCalc.decayedBy - time) / 1000 / 60 / 60;
           }
         }
 
         if (cCalc) {
-          lastDecayedBy = cCalc.decayedBy;
+          lastDecayedBy = +cCalc.decayedBy;
         }
 
         if (decaysin_hr > 0) {
           //console.info('Adding ' + delayMinutes + ' minutes to decay of ' + treatment.carbs + 'g bolus at ' + treatment.mills);
-          totalCOB += Math.min(Number(treatment.carbs), decaysin_hr * profile.getCarbAbsorptionRate(treatment.mills, spec_profile));
+          totalCOB += Math.min(
+            Number(treatment.carbs),
+            decaysin_hr * carbAbsoprtionRate
+          );
           //console.log('cob:', Math.min(cCalc.initialCarbs, decaysin_hr * profile.getCarbAbsorptionRate(treatment.mills)),cCalc.initialCarbs,decaysin_hr,profile.getCarbAbsorptionRate(treatment.mills));
           isDecaying = cCalc.isDecaying;
         } else {
           totalCOB = 0;
         }
-
       }
     });
 
-    var rawCarbImpact = isDecaying * profile.getSensitivity(time, spec_profile) / profile.getCarbRatio(time, spec_profile) * profile.getCarbAbsorptionRate(time, spec_profile) / 60;
+    const sens = profile.getSensitivity(time, spec_profile) ?? NaN;
+    const carbRatio = profile.getCarbRatio(time, spec_profile) ?? NaN;
+    const carbAbsoprtionRate =
+      profile.getCarbAbsorptionRate(time, spec_profile) ?? NaN;
+
+    const rawCarbImpact =
+      (((isDecaying * sens) / carbRatio) * carbAbsoprtionRate) / 60;
 
     return {
-      decayedBy: lastDecayedBy
-      , isDecaying: isDecaying
-      , carbs_hr: profile.getCarbAbsorptionRate(time, spec_profile)
-      , rawCarbImpact: rawCarbImpact
-      , cob: totalCOB
-      , lastCarbs: lastCarbs
+      decayedBy: lastDecayedBy,
+      isDecaying: isDecaying,
+      carbs_hr: profile.getCarbAbsorptionRate(time, spec_profile),
+      rawCarbImpact: rawCarbImpact,
+      cob: totalCOB,
+      /** @type {import("../types").Treatment | null} */
+      lastCarbs: lastCarbs,
     };
-  };
-
-  cob.carbImpact = function carbImpact (rawCarbImpact, insulinImpact) {
-    var liverSensRatio = 1.0;
-    var liverCarbImpactMax = 0.7;
-    var liverCarbImpact = Math.min(liverCarbImpactMax, liverSensRatio * insulinImpact);
-    //var liverCarbImpact = liverSensRatio*insulinImpact;
-    var netCarbImpact = Math.max(0, rawCarbImpact - liverCarbImpact);
-    var totalImpact = netCarbImpact - insulinImpact;
-    return {
-      netCarbImpact: netCarbImpact
-      , totalImpact: totalImpact
-    };
-  };
-
-  cob.cobCalc = function cobCalc (treatment, profile, lastDecayedBy, time, spec_profile) {
-
-    var delay = 20;
-    var isDecaying = 0;
-    var initialCarbs;
-
-    if (treatment.carbs) {
-      var carbTime = new Date(treatment.mills);
-
-      var carbs_hr = profile.getCarbAbsorptionRate(treatment.mills, spec_profile);
-      var carbs_min = carbs_hr / 60;
-
-      var decayedBy = new Date(carbTime);
-      var minutesleft = (lastDecayedBy - carbTime) / 1000 / 60;
-      decayedBy.setMinutes(decayedBy.getMinutes() + Math.max(delay, minutesleft) + treatment.carbs / carbs_min);
-      if (delay > minutesleft) {
-        initialCarbs = parseInt(treatment.carbs);
-      } else {
-        initialCarbs = parseInt(treatment.carbs) + minutesleft * carbs_min;
-      }
-      var startDecay = new Date(carbTime);
-      startDecay.setMinutes(carbTime.getMinutes() + delay);
-      if (time < lastDecayedBy || time > startDecay) {
-        isDecaying = 1;
-      } else {
-        isDecaying = 0;
-      }
-      return {
-        initialCarbs: initialCarbs
-        , decayedBy: decayedBy
-        , isDecaying: isDecaying
-        , carbTime: carbTime
-      };
-    } else {
-      return '';
-    }
-  };
-
-  cob.updateVisualisation = function updateVisualisation (sbx) {
-
-    var prop = sbx.properties.cob;
-
-    if (prop === undefined || prop.cob === undefined) { return; }
-
-    var displayCob = Math.round(prop.cob * 10) / 10;
-
-    var info = [];
-    if (prop.treatmentCOB !== undefined && prop.treatmentCOB.cob) {
-      info.push({ label: translate('Careportal COB'), value: Math.round(prop.treatmentCOB.cob * 10) / 10 });
-    }
-
-    var lastCarbs = prop.lastCarbs || (prop.treatmentCOB && prop.treatmentCOB.lastCarbs);
-    if (lastCarbs) {
-      var when = new Date(lastCarbs.mills).toLocaleString();
-      var amount = lastCarbs.carbs + 'g';
-      info.push({ label: translate('Last Carbs'), value: amount + ' @ ' + when });
-    }
-
-    sbx.pluginBase.updatePillText(sbx, {
-      value: displayCob + 'g'
-      , label: translate('COB')
-      , info: info
-    });
-  };
-  function virtAsstCOBHandler (next, slots, sbx) {
-    var response = '';
-    var cob = sbx?.properties?.cob?.cob;
-    var pwd = slots?.pwd?.value;
-    var value = cob ? cob : 0;
-    if (pwd) {
-      response = translate('virtAsstCob3person', {
-        params: [
-          pwd.replace('\'s', '')
-          , value
-        ]
-      });
-    } else {
-      response = translate('virtAsstCob', {
-        params: [
-          value
-        ]
-      });
-    }
-    next(translate('virtAsstTitleCurrentCOB'), response);
   }
 
-  cob.virtAsst = {
-    intentHandlers: [{
-      intent: 'MetricNow'
-      , metrics: ['cob', 'carbs on board', 'carbohydrates on board']
-      , intentHandler: virtAsstCOBHandler
-    }]
+  /**
+   * @param {number} rawCarbImpact
+   * @param {number} insulinImpact
+   */
+  carbImpact(rawCarbImpact, insulinImpact) {
+    const liverSensRatio = 1.0;
+    const liverCarbImpactMax = 0.7;
+    const liverCarbImpact = Math.min(
+      liverCarbImpactMax,
+      liverSensRatio * insulinImpact
+    );
+
+    const netCarbImpact = Math.max(0, rawCarbImpact - liverCarbImpact);
+    const totalImpact = netCarbImpact - insulinImpact;
+    return {
+      netCarbImpact,
+      totalImpact,
+    };
+  }
+
+  /**
+   * @param {import("../types").Treatment} treatment
+   * @param {ReturnType<import("../profilefunctions")>} profile
+   * @param {number} lastDecayedBy
+   * @param {number} time
+   * @param {string} [spec_profile]
+   */
+  cobCalc(treatment, profile, lastDecayedBy, time, spec_profile) {
+    if (!treatment.carbs) return "";
+
+    const delay = 20;
+
+    const carbTime = new Date(treatment.mills);
+
+    const carbs_hr =
+      profile.getCarbAbsorptionRate(treatment.mills, spec_profile) ?? NaN;
+    const carbs_min = carbs_hr / 60;
+
+    const decayedBy = new Date(carbTime);
+    const minutesleft = (lastDecayedBy - +carbTime) / 1000 / 60;
+    decayedBy.setMinutes(
+      decayedBy.getMinutes() +
+        Math.max(delay, minutesleft) +
+        treatment.carbs / carbs_min
+    );
+
+    const initialCarbs =
+      delay > minutesleft
+        ? parseInt(treatment.carbs?.toString())
+        : parseInt(treatment.carbs?.toString()) + minutesleft * carbs_min;
+
+    const startDecay = new Date(carbTime);
+    startDecay.setMinutes(carbTime.getMinutes() + delay);
+    const isDecaying = time < lastDecayedBy || time > +startDecay ? 1 : 0;
+
+    return {
+      initialCarbs: initialCarbs,
+      decayedBy: decayedBy,
+      isDecaying: isDecaying,
+      carbTime: carbTime,
+    };
+  }
+
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    const prop = sbx.properties.cob;
+
+    if (prop === undefined || prop.cob === undefined) {
+      return;
+    }
+
+    const displayCob = Math.round(prop.cob * 10) / 10;
+
+    const info = [];
+    if ("treatmentCOB" in prop && prop.treatmentCOB && prop.treatmentCOB.cob) {
+      info.push({
+        label: this.translate("Careportal COB"),
+        value: Math.round(prop.treatmentCOB.cob * 10) / 10,
+      });
+    }
+
+    const lastCarbs =
+      ("lastCarbs" in prop && prop.lastCarbs) ||
+      (prop.treatmentCOB && prop.treatmentCOB.lastCarbs);
+    if (lastCarbs) {
+      const when = new Date(lastCarbs.mills).toLocaleString();
+      const amount = lastCarbs.carbs + "g";
+      info.push({
+        label: this.translate("Last Carbs"),
+        value: amount + " @ " + when,
+      });
+    }
+
+    // TODO why does this pass `sbx`, not `this` - this should not work?
+    sbx.pluginBase.updatePillText(sbx, {
+      value: displayCob + "g",
+      label: this.translate("COB"),
+      info: info,
+    });
+  }
+
+  /** @type {import("../types").VirtAsstIntentHandlerFn} */
+  virtAsstCOBHandler(next, slots, sbx) {
+    const cob = sbx.properties.cob?.cob;
+    const pwd = /** @type {undefined | { pwd?: { value?: string } }} */ (slots)
+      ?.pwd?.value;
+    const value = cob ? cob.toString() : "0";
+
+    const response = pwd
+      ? this.translate("virtAsstCob3person", {
+          params: [pwd.replace("'s", ""), value],
+        })
+      : this.translate("virtAsstCob", {
+          params: [value],
+        });
+
+    next(this.translate("virtAsstTitleCurrentCOB"), response);
+  }
+
+  virtAsst = {
+    intentHandlers: [
+      {
+        intent: "MetricNow",
+        metrics: ["cob", "carbs on board", "carbohydrates on board"],
+        intentHandler: this.virtAsstCOBHandler.bind(this),
+      },
+    ],
   };
-
-  return cob;
-
 }
 
-module.exports = init;
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new CobPlugin(ctx);

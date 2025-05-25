@@ -1,148 +1,191 @@
-'use strict';
+"use strict";
 
-function init (ctx) {
-  var translate = ctx.language.translate;
+/** @typedef {ReturnType<DbSizePlugin["analyzeData"]>} DbSizeProperties */
 
-  var dbsize = {
-    name: 'dbsize'
-    , label: translate('Database Size')
-    , pluginType: 'pill-status'
-    , pillFlip: true
-  };
+/** @typedef {import("../types").Plugin} Plugin */
+/** @implements {Plugin} */
+class DbSizePlugin {
+  name = /** @type {const} */ ("dbsize");
+  label = "Database Size";
+  pluginType = "pill-status";
+  pillFlip = true;
 
-  dbsize.getPrefs = function getPrefs (sbx) {
+  /** @param {import(".").PluginCtx} ctx */
+  constructor(ctx) {
+    this.translate = ctx.language.translate;
+    this.levels = ctx.levels;
+  }
+
+  /** @param {ReturnType<import("../sandbox")>} sbx */
+  getPrefs(sbx) {
     return {
-      warnPercentage: sbx.extendedSettings.warnPercentage ? sbx.extendedSettings.warnPercentage : 60
-      , urgentPercentage: sbx.extendedSettings.urgentPercentage ? sbx.extendedSettings.urgentPercentage : 75
-      , max: sbx.extendedSettings.max ? sbx.extendedSettings.max : 496
-      , enableAlerts: sbx.extendedSettings.enableAlerts
-      , inMib: sbx.extendedSettings.inMib
+      warnPercentage: sbx.extendedSettings.warnPercentage
+        ? sbx.extendedSettings.warnPercentage
+        : 60,
+      urgentPercentage: sbx.extendedSettings.urgentPercentage
+        ? sbx.extendedSettings.urgentPercentage
+        : 75,
+      max: sbx.extendedSettings.max ? sbx.extendedSettings.max : 496,
+      enableAlerts: sbx.extendedSettings.enableAlerts,
+      inMib: sbx.extendedSettings.inMib,
     };
-  };
+  }
 
-  dbsize.setProperties = function setProperties (sbx) {
-    sbx.offerProperty('dbsize', function setDbsize () {
-      return dbsize.analyzeData(sbx);
-    });
-  };
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  setProperties(sbx) {
+    sbx.offerProperty("dbsize", () => this.analyzeData(sbx));
+  }
 
-  dbsize.analyzeData = function analyzeData (sbx) {
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  analyzeData(sbx) {
+    const prefs = this.getPrefs(sbx);
 
-    var prefs = dbsize.getPrefs(sbx);
+    const recentData = sbx.data.dbstats;
 
-    var recentData = sbx.data.dbstats;
+    const maxSize = prefs.max > 0 ? prefs.max : 100 * 1024;
+    const totalDataSize =
+      ((recentData?.dataSize || 0) + (recentData?.indexSize || 0)) /
+      (1024 * 1024);
 
-    var result = {
-      level: undefined
-      , display: prefs.inMib ? '?MiB' : '?%'
-      , status: undefined
-    };
-
-    var maxSize = (prefs.max > 0) ? prefs.max : 100 * 1024;
-    var totalDataSize = (recentData && recentData.dataSize) ? recentData.dataSize : 0;
-    totalDataSize += (recentData && recentData.indexSize) ? recentData.indexSize : 0;
-    totalDataSize /= 1024 * 1024;
-
-    var dataPercentage = Math.floor((totalDataSize * 100.0) / maxSize);
-
-    result.totalDataSize = totalDataSize;
-    result.dataPercentage = dataPercentage;
-    result.notificationLevel = ctx.levels.INFO;
-    result.details = {
-        maxSize: parseFloat(maxSize.toFixed(2))
-      , dataSize: parseFloat(totalDataSize.toFixed(2))
-    };
+    const dataPercentage = Math.floor((totalDataSize * 100.0) / maxSize);
 
     // failsafe to have percentage in 0..100 range
-    var boundWarnPercentage = Math.max(0, Math.min(100, parseInt(prefs.warnPercentage)));
-    var boundUrgentPercentage = Math.max(0, Math.min(100, parseInt(prefs.urgentPercentage)));
+    const boundWarnPercentage = Math.max(
+      0,
+      Math.min(100, parseInt(prefs.warnPercentage))
+    );
+    const boundUrgentPercentage = Math.max(
+      0,
+      Math.min(100, parseInt(prefs.urgentPercentage))
+    );
 
-    var warnSize = Math.floor((boundWarnPercentage/100) * maxSize);
-    var urgentSize = Math.floor((boundUrgentPercentage/100) * maxSize);
+    const warnSize = Math.floor((boundWarnPercentage / 100) * maxSize);
+    const urgentSize = Math.floor((boundUrgentPercentage / 100) * maxSize);
+    const notificationLevel =
+      (totalDataSize >= urgentSize &&
+        boundUrgentPercentage > 0 &&
+        this.levels.URGENT) ||
+      (totalDataSize >= warnSize &&
+        boundWarnPercentage > 0 &&
+        this.levels.WARN) ||
+      this.levels.INFO;
 
-    if ((totalDataSize >= urgentSize)&&(boundUrgentPercentage > 0)) {
-      result.notificationLevel = ctx.levels.URGENT;
-    } else if ((totalDataSize >= warnSize)&&(boundWarnPercentage > 0)) {
-      result.notificationLevel = ctx.levels.WARN;
-    }
+    const display = prefs.inMib
+      ? parseFloat(totalDataSize.toFixed(0)) + "MiB"
+      : dataPercentage + "%";
+    const status = this.levels.toStatusClass(notificationLevel);
 
-    result.display = prefs.inMib ? parseFloat(totalDataSize.toFixed(0)) + 'MiB' : dataPercentage + '%';
-    result.status = ctx.levels.toStatusClass(result.notificationLevel);
+    return {
+      /**
+       * @deprecated In original return type, not used, leaving in for backwards
+       *   compatability
+       */
+      level: undefined,
+      totalDataSize,
+      dataPercentage,
+      details: {
+        maxSize: parseFloat(maxSize.toFixed(2)),
+        dataSize: parseFloat(totalDataSize.toFixed(2)),
+      },
+      notificationLevel,
+      display,
+      status,
+    };
+  }
 
-    return result;
-  };
+  /** @param {import("../sandbox").InitializedSandbox} sbx */
+  checkNotifications(sbx) {
+    const prefs = this.getPrefs(sbx);
 
-  dbsize.checkNotifications = function checkNotifications (sbx) {
-    var prefs = dbsize.getPrefs(sbx);
+    if (!prefs.enableAlerts) return;
 
-    if (!prefs.enableAlerts) { return; }
+    const prop = sbx.properties.dbsize;
 
-    var prop = sbx.properties.dbsize;
-
-    if (prop.dataPercentage && prop.notificationLevel && prop.notificationLevel >= ctx.levels.WARN) {
+    if (
+      prop &&
+      prop.dataPercentage &&
+      prop.notificationLevel &&
+      prop.notificationLevel >= this.levels.WARN
+    ) {
       sbx.notifications.requestNotify({
-        level: prop.notificationLevel
-        , title: ctx.levels.toDisplay(prop.notificationLevel) + ' ' + translate('Database Size near its limits!')
-        , message: translate('Database size is %1 MiB out of %2 MiB. Please backup and clean up database!', {
-          params: [prop.details.dataSize, prop.details.maxSize]
-        })
-        , pushoverSound: 'echo'
-        , group: 'Database Size'
-        , plugin: dbsize
-        , debug: prop
+        level: prop.notificationLevel,
+        title:
+          this.levels.toDisplay(prop.notificationLevel) +
+          " " +
+          this.translate("Database Size near its limits!"),
+        message: this.translate(
+          "Database size is %1 MiB out of %2 MiB. Please backup and clean up database!",
+          {
+            params: [
+              prop.details.dataSize.toString(),
+              prop.details.maxSize.toString(),
+            ],
+          }
+        ),
+        pushoverSound: "echo",
+        group: "Database Size",
+        plugin: this,
+        debug: prop,
       });
-    }
-  };
-
-  dbsize.updateVisualisation = function updateVisualisation (sbx) {
-    var prop = sbx.properties.dbsize;
-
-    var infos = [{
-        label: translate('Data size')
-        , value: translate('%1 MiB of %2 MiB (%3%)', {
-          params: [prop.details.dataSize, prop.details.maxSize, prop.dataPercentage]
-        })
-        }
-    ];
-
-    sbx.pluginBase.updatePillText(dbsize, {
-      value: prop && prop.display
-      , labelClass: 'plugicon-database'
-      , pillClass: prop && prop.status
-      , info: infos
-      , hide: !(prop && prop.totalDataSize && prop.totalDataSize >= 0)
-    });
-  };
-
-  function virtAsstDatabaseSizeHandler (next, slots, sbx) {
-    var display = sbx?.properties?.dbsize?.display;
-    if (display) {
-      var dataSize = sbx?.properties?.dbsize?.details?.dataSize;
-      var dataPercentage = sbx?.properties?.dbsize?.dataPercentage;
-      var response = translate('virtAsstDatabaseSize', {
-        params: [
-          dataSize
-          , dataPercentage
-        ]
-      });
-      next(translate('virtAsstTitleDatabaseSize'), response);
-    } else {
-      next(translate('virtAsstTitleDatabaseSize'), translate('virtAsstUnknown'));
     }
   }
 
-  dbsize.virtAsst = {
+  /** @param {import("../sandbox").ClientInitializedSandbox} sbx */
+  updateVisualisation(sbx) {
+    const prop = sbx.properties.dbsize;
+    if(!prop) return;
+
+    const info = [
+      {
+        label: this.translate("Data size"),
+        value: this.translate("%1 MiB of %2 MiB (%3%)", {
+          params: [
+            prop.details.dataSize.toString() ,
+            prop.details.maxSize.toString(),
+            prop.dataPercentage.toString(),
+          ],
+        }),
+      },
+    ];
+
+    sbx.pluginBase.updatePillText(this, {
+      value: prop.display,
+      labelClass: "plugicon-database",
+      pillClass: prop.status,
+      info,
+      hide: prop.totalDataSize <= 0,
+    });
+  }
+
+  /** @protected @type {import("../types").VirtAsstIntentHandlerFn} */
+  virtAsstDatabaseSizeHandler(next, _slots, sbx) {
+    if (sbx.properties.dbsize?.display) {
+      const dataSize = sbx.properties.dbsize.details.dataSize;
+      const dataPercentage = sbx.properties.dbsize.dataPercentage;
+
+      const response = this.translate("virtAsstDatabaseSize", {
+        params: [dataSize.toString(), dataPercentage.toString()],
+      });
+
+      next(this.translate("virtAsstTitleDatabaseSize"), response);
+    } else {
+      next(
+        this.translate("virtAsstTitleDatabaseSize"),
+        this.translate("virtAsstUnknown")
+      );
+    }
+  }
+
+  virtAsst = {
     intentHandlers: [
       {
-        intent: 'MetricNow'
-        , metrics: ['db size']
-        , intentHandler: virtAsstDatabaseSizeHandler
-      }
-    ]
+        intent: "MetricNow",
+        metrics: ["db size"],
+        intentHandler: this.virtAsstDatabaseSizeHandler.bind(this),
+      },
+    ],
   };
-
-  return dbsize;
-
 }
 
-module.exports = init;
+/** @param {import(".").PluginCtx} ctx */
+module.exports = (ctx) => new DbSizePlugin(ctx);

@@ -1,275 +1,367 @@
-'use strict';
+"use strict";
 
-var Storages = require('js-storage');
+const crypto = require("crypto");
+const Storages = require("js-storage");
 
-var hashauth = {
-  initialized: false
-};
+class HashAuth {
+  /**
+   *
+   * @param {import("./index")} client
+   * @param {JQueryStatic} $
+   */
+  constructor(client, $) {
+    /** @type {string | null} */
+    this.apisecret = "";
+    this.storeapisecret = false;
+    /** @type {string | null} */
+    this.apisecrethash = null;
+    this.authenticated = false;
+    this.tokenauthenticated = false;
+    this.hasReadPermission = false;
+    this.isAdmin = false;
+    this.hasWritePermission = false;
+    this.permissionlevel = "NONE";
 
-hashauth.init = function init (client, $) {
+    this.client = client;
+    this.$ = $;
+  }
 
-  hashauth.apisecret = '';
-  hashauth.storeapisecret = false;
-  hashauth.apisecrethash = null;
-  hashauth.authenticated = false;
-  hashauth.tokenauthenticated = false;
-  hashauth.hasReadPermission = false;
-  hashauth.isAdmin = false;
-  hashauth.hasWritePermission = false;
-  hashauth.permissionlevel = 'NONE';
-
-  hashauth.verifyAuthentication = function verifyAuthentication (next) {
-    hashauth.authenticated = false;
+  /**
+   * @param {(success: boolean) => void} next
+   */
+  verifyAuthentication(next) {
+    this.authenticated = false;
     $.ajax({
-      method: 'GET'
-      , url: '/api/v1/verifyauth?t=' + Date.now() //cache buster
-      , headers: client.headers()
-    }).done(function verifysuccess (response) {
+      method: "GET",
+      url: "/api/v1/verifyauth?t=" + Date.now(), //cache buster
+      headers: this.client.headers(),
+    })
+      .done((response) => {
+        if (!this.#validateVerifyAuthResponse(response)) {
+          console.error("Invalid response from /api/v1/verifyauth", response);
+          this.removeAuthentication();
+          next(false);
+          return;
+        }
+        const message = response.message;
+        if (typeof message === "object") {
+          if (message.canRead) this.hasReadPermission = true;
+          if (message.canWrite) this.hasWritePermission = true;
+          if (message.isAdmin) this.isAdmin = true;
+          if (message.permissions) this.permissionlevel = message.permissions;
+        }
 
+        if (typeof message === "object" && message.rolefound == "FOUND") {
+          this.tokenauthenticated = true;
+          console.log("Token Authentication passed.");
+          next(true);
+          return;
+        }
 
-      var message = response.message;
+        if (
+          response.message === "OK" ||
+          (typeof message === "object" && message.message === "OK")
+        ) {
+          this.authenticated = true;
+          console.log("Authentication passed.");
+          next(true);
+          return;
+        }
 
-      if (message.canRead) { hashauth.hasReadPermission = true; }
-      if (message.canWrite) { hashauth.hasWritePermission = true; }
-      if (message.isAdmin) { hashauth.isAdmin = true; }
-      if (message.permissions) { hashauth.permissionlevel = message.permissions; }
-
-      if (message.rolefound == 'FOUND') {
-        hashauth.tokenauthenticated = true;
-        console.log('Token Authentication passed.');
-        next(true);
+        console.log("Authentication failed!", response);
+        this.removeAuthentication();
+        next(false);
         return;
-      }
+      })
+      .fail((err) => {
+        console.log("Authentication failure", err);
+        this.removeAuthentication();
+        next(false);
+      });
+  }
 
-      if (response.message === 'OK' || message.message === 'OK') {
-        hashauth.authenticated = true;
-        console.log('Authentication passed.');
-        next(true);
-        return;
-      }
-
-      console.log('Authentication failed!', response);
-      hashauth.removeAuthentication();
-      next(false);
-      return;
-
-    }).fail(function verifyfail (err) {
-      console.log('Authentication failure', err);
-      hashauth.removeAuthentication();
-      next(false);
-    });
-  };
-
-  hashauth.injectHtml = function injectHtml () {
-    if (!hashauth.injectedHtml) {
-      $('#authentication_placeholder').html(hashauth.inlineCode());
-      hashauth.injectedHtml = true;
+  /**
+   * @typedef AuthResponseMessage
+   * @property {boolean} [canRead]
+   * @property {boolean} [canWrite]
+   * @property {boolean} [isAdmin]
+   * @property {string} [permissions]
+   * @property {string} rolefound
+   * @property {string} message
+   */
+  /** @param {unknown} res @returns {res is {message: AuthResponseMessage} | {message: string}} */
+  #validateVerifyAuthResponse(res) {
+    if (typeof res !== "object" || !res) {
+      return false;
     }
-  };
+    if (
+      !("message" in res) ||
+      typeof res.message !== "object" ||
+      !res.message
+    ) {
+      if ("message" in res && typeof res.message === "string") return true;
+      return false;
+    }
 
-  hashauth.initAuthentication = function initAuthentication (next) {
-    hashauth.apisecrethash = hashauth.apisecrethash || Storages.localStorage.get('apisecrethash') || null;
-    hashauth.verifyAuthentication(function() {
-      hashauth.injectHtml();
-      if (next) { next(hashauth.isAuthenticated()); }
+    const msg = res.message;
+    if (!("rolefound" in msg) || typeof msg.rolefound !== "string") {
+      return false;
+    }
+    if (!("message" in msg) || typeof msg.message !== "string") {
+      return false;
+    }
+    if ("permissions" in msg && typeof msg.permissions !== "string") {
+      return false;
+    }
+    if ("canRead" in msg && typeof msg.canRead !== "boolean") {
+      return false;
+    }
+    if ("canWrite" in msg && typeof msg.canWrite !== "boolean") {
+      return false;
+    }
+    if ("isAdmin" in msg && typeof msg.isAdmin !== "boolean") {
+      return false;
+    }
+    return true;
+  }
+
+  injectHtml() {
+    if (!this.injectedHtml) {
+      this.$("#authentication_placeholder").html(this.inlineCode());
+      this.injectedHtml = true;
+    }
+  }
+
+  /** @param {(success: boolean) => void} [next]  */
+  initAuthentication(next) {
+    this.apisecrethash ??=
+      Storages.localStorage.get("apisecrethash")?.toString() ?? null;
+
+    this.verifyAuthentication(() => {
+      this.injectHtml();
+      if (next) {
+        next(this.isAuthenticated());
+      }
     });
-    return hashauth;
-  };
+  }
 
-  hashauth.removeAuthentication = function removeAuthentication (event) {
+  /** @param {Event} [event] */
+  removeAuthentication(event) {
+    Storages.localStorage.remove("apisecrethash");
 
-    Storages.localStorage.remove('apisecrethash');
-
-    if (hashauth.authenticated || hashauth.tokenauthenticated) {
-      client.browserUtils.reload();
+    if (this.authenticated || this.tokenauthenticated) {
+      this.client.browserUtils.reload();
     }
 
     // clear everything just in case
-    hashauth.apisecret = null;
-    hashauth.apisecrethash = null;
-    hashauth.authenticated = false;
+    this.apisecret = null;
+    this.apisecrethash = null;
+    this.authenticated = false;
 
     if (event) {
       event.preventDefault();
     }
     return false;
-  };
+  }
 
-  hashauth.requestAuthentication = function requestAuthentication (eventOrNext) {
-    var translate = client.translate;
-    hashauth.injectHtml();
+  /** @param {JQuery.Event | Event | ((success: boolean) => void)} [eventOrNext] */
+  requestAuthentication(eventOrNext) {
+    const translate = this.client.translate;
+    this.injectHtml();
 
-    var clientWidth = window.innerWidth ||
-      document.documentElement.clientWidth ||
-      document.body.clientWidth;
-
-    clientWidth = Math.min(400, clientWidth);
-
-    $('#requestauthenticationdialog').dialog({
-      width: clientWidth
-      , height: 270
-      , closeText: ''
-      , buttons: [
+    const clientWidth = Math.min(
+      400,
+      window.innerWidth ||
+        document.documentElement.clientWidth ||
+        document.body.clientWidth
+    );
+    const that = this;
+    $("#requestauthenticationdialog").dialog({
+      width: clientWidth,
+      height: 270,
+      closeText: "",
+      buttons: [
         {
-          id: 'requestauthenticationdialog-btn'
-          , text: translate('Authenticate')
-          , click: function() {
-            var dialog = this;
-            hashauth.processSecret($('#apisecret').val(), $('#storeapisecret').is(':checked'), function done (close) {
-              if (close) {
-                if (eventOrNext && eventOrNext.call) {
-                  eventOrNext(true);
-                } else {
-                  client.afterAuth(true);
-                }
-                $(dialog).dialog('close');
-              } else {
-                $('#apisecret').val('').focus();
-              }
-            });
-          }
-        }
-      ]
-      , open: function open () {
-        $('#apisecret').off('keyup').on('keyup', function pressed (e) {
-          if (e.keyCode === $.ui.keyCode.ENTER) {
-            $('#requestauthenticationdialog-btn').trigger('click');
-          }
-        });
-        $('#apisecret').val('').focus();
-      }
+          id: "requestauthenticationdialog-btn",
+          text: translate("Authenticate"),
+          click: function () {
+            const dialog = this;
+            that.processSecret(
+              $("#apisecret").val()?.toString(),
+              $("#storeapisecret").is(":checked"),
+              () => {}
+            );
 
+            if (typeof eventOrNext === "function") {
+              eventOrNext(true);
+            } else {
+              that.client.afterAuth(true);
+            }
+
+            $(dialog).dialog("close");
+
+            // $("#apisecret").val("").trigger("focus");
+          },
+        },
+      ],
+      open: () => {
+        $("#apisecret")
+          .off("keyup")
+          .on("keyup", (e) => {
+            if (e.key === "Enter") {
+              $("#requestauthenticationdialog-btn").trigger("click");
+            }
+          });
+        $("#apisecret").val("").trigger("focus");
+      },
     });
 
-    if (eventOrNext && eventOrNext.preventDefault) {
+    if (typeof eventOrNext === "object") {
       eventOrNext.preventDefault();
     }
     return false;
-  };
+  }
 
-  hashauth.processSecret = async function processSecret (apisecret, storeapisecret, callback) {
-    var translate = client.translate;
+  /**
+   *
+   * @param {string} [apisecret]
+   * @param {boolean} [storeapisecret]
+   * @param {(close: boolean) => void} [callback]
+   */
+  processSecret(apisecret, storeapisecret, callback) {
+    const translate = this.client.translate;
 
-    hashauth.apisecret = apisecret;
-    hashauth.storeapisecret = storeapisecret;
-    if (!hashauth.apisecret || hashauth.apisecret.length < 12) {
-      window.alert(translate('Too short API secret'));
-      if (callback) {
-        callback(false);
+    this.apisecret = apisecret ?? null;
+    this.storeapisecret = !!storeapisecret;
+    if (!this.apisecret || this.apisecret.length < 12) {
+      window.alert(translate("Too short API secret"));
+      if (callback) callback(false);
+      return;
+    }
+
+    const shasum = crypto.createHash("sha1");
+    shasum.update(this.apisecret);
+    this.apisecrethash = shasum.digest("hex");
+
+    this.verifyAuthentication((isOk) => {
+      if (!isOk) {
+        alert(translate("Wrong API secret"));
+        if (callback) callback(false);
+        return;
       }
-    } else {
-      try {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(hashauth.apisecret);
-        const hashBuffer = await window.crypto.subtle.digest('SHA-1', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer)); // convert buffer to byte array
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join(''); // convert bytes to hex string
-        hashauth.apisecrethash = hashHex;
 
-        hashauth.verifyAuthentication(function(isok) {
-          if (isok) {
-            if (hashauth.storeapisecret) {
-              Storages.localStorage.set('apisecrethash', hashauth.apisecrethash);
-              // TODO show dialog first, then reload
-              if (hashauth.tokenauthenticated) client.browserUtils.reload();
-            }
-            $('#authentication_placeholder').html(hashauth.inlineCode());
-            if (callback) {
-              callback(true);
-            }
-          } else {
-            alert(translate('Wrong API secret'));
-            if (callback) {
-              callback(false);
-            }
-          }
-        });
-      } catch (error) {
-        console.error('Error hashing API secret:', error);
-        if (callback) {
-          callback(false);
+      if (this.storeapisecret) {
+        Storages.localStorage.set("apisecrethash", this.apisecrethash);
+        // TODO show dialog first, then reload
+        if (this.tokenauthenticated) this.client.browserUtils.reload();
+      }
+
+      $("#authentication_placeholder").html(this.inlineCode());
+
+      if (callback) callback(true);
+    });
+  }
+
+  inlineCode() {
+    const translate = this.client.translate;
+
+    /** @type {string | null} */
+    let status = null;
+
+    if (!this.isAdmin) $(".needsadminaccess").hide();
+    else $(".needsadminaccess").show();
+
+    if (this.client.updateAdminMenu) this.client.updateAdminMenu();
+
+    if (this.client.authorized || this.tokenauthenticated) {
+      status = translate("Authorized by token");
+      if (this.client.authorized && this.client.authorized.sub) {
+        status +=
+          "<br>" + translate("Auth role") + ": " + this.client.authorized.sub;
+        if (this.hasReadPermission) {
+          status += "<br>" + translate("Data reads enabled");
+        }
+        if (this.hasWritePermission) {
+          status += "<br>" + translate("Data writes enabled");
+        }
+        if (!this.hasWritePermission) {
+          status += "<br>" + translate("Data writes not enabled");
         }
       }
-    }
-  };
-
-  hashauth.inlineCode = function inlineCode () {
-    var translate = client.translate;
-
-    var status = null;
-
-    if (!hashauth.isAdmin) {
-      $('.needsadminaccess').hide();
-    } else {
-      $('.needsadminaccess').show();
-    }
-
-    if (client.updateAdminMenu) client.updateAdminMenu();
-
-    if (client.authorized || hashauth.tokenauthenticated) {
-      status = translate('Authorized by token');
-      if (client.authorized && client.authorized.sub) {
-        status += '<br>' + translate('Auth role') + ': ' + client.authorized.sub;
-        if (hashauth.hasReadPermission) {  status += '<br>' + translate('Data reads enabled'); }
-        if (hashauth.hasWritePermission) { status += '<br>' + translate('Data writes enabled'); }
-        if (!hashauth.hasWritePermission) { status += '<br>' + translate('Data writes not enabled'); }
-      }
-      if (hashauth.apisecrethash) {
-        status += '<br> <a href="#" onclick="Nightscout.client.hashauth.removeAuthentication(); return false;">(' + translate('Remove stored token') + ')</a>';
+      if (this.apisecrethash) {
+        status +=
+          '<br> <a href="#" onclick="Nightscout.client.hashauth.removeAuthentication(); return false;">(' +
+          translate("Remove stored token") +
+          ")</a>";
       } else {
-        status += '<br><a href="/">(' + translate('view without token') + ')</a>';
+        status +=
+          '<br><a href="/">(' + translate("view without token") + ")</a>";
       }
-
-    } else if (hashauth.isAuthenticated()) {
-      status = translate('Admin authorized') + ' <a href="#" onclick="Nightscout.client.hashauth.removeAuthentication(); return false;">(' + translate('Remove') + ')</a>';
+    } else if (this.isAuthenticated()) {
+      status =
+        translate("Admin authorized") +
+        ' <a href="#" onclick="Nightscout.client.hashauth.removeAuthentication(); return false;">(' +
+        translate("Remove") +
+        ")</a>";
     } else {
-      status = translate('Unauthorized') +
-        '<br>' +
-        translate('Reads enabled in default permissions') +
-        '<br>' +
+      status =
+        translate("Unauthorized") +
+        "<br>" +
+        translate("Reads enabled in default permissions") +
+        "<br>" +
         ' <a href="#" onclick="Nightscout.client.hashauth.requestAuthentication(); return false;">(' +
-        translate('Authenticate') + ')</a>';
+        translate("Authenticate") +
+        ")</a>";
     }
 
-    var html =
-      '<div id="requestauthenticationdialog" style="display:none" title="' + translate('Device authentication') + '">' +
-      '<label for="apisecret">' + translate('Your API secret or token') + ': </label>' +
+    return (
+      '<div id="requestauthenticationdialog" style="display:none" title="' +
+      translate("Device authentication") +
+      '">' +
+      '<label for="apisecret">' +
+      translate("Your API secret or token") +
+      ": </label>" +
       '<input type="password" id="apisecret" size="20" style="width: 100%;"/>' +
-      '<br>' +
-      '<input type="checkbox" id="storeapisecret" /> <label for="storeapisecret">' + translate('Remember this device. (Do not enable this on public computers.)') + '</label>' +
-      '</div>' +
-      '<div id="authorizationstatus">' + status + '</div>';
+      "<br>" +
+      '<input type="checkbox" id="storeapisecret" /> <label for="storeapisecret">' +
+      translate(
+        "Remember this device. (Do not enable this on public computers.)"
+      ) +
+      "</label>" +
+      "</div>" +
+      '<div id="authorizationstatus">' +
+      status +
+      "</div>"
+    );
+  }
 
-    return html;
-  };
-
-  hashauth.updateSocketAuth = function updateSocketAuth () {
-    client.socket.emit(
-      'authorize'
-      , {
-        client: 'web'
-        , secret: client.authorized && client.authorized.token ? null : client.hashauth.hash()
-        , token: client.authorized && client.authorized.token
-      }
-      , function authCallback (data) {
-        if (!data.read && !client.authorized) {
-          hashauth.requestAuthentication();
+  updateSocketAuth() {
+    this.client.socket.emit(
+      "authorize",
+      {
+        client: "web",
+        secret:
+          this.client.authorized && this.client.authorized.token
+            ? null
+            : this.client.hashauth.hash(),
+        token: this.client.authorized && this.client.authorized.token,
+      },
+      /** @param {{read?: boolean}} data */
+      (data) => {
+        if (!data.read && !this.client.authorized) {
+          this.requestAuthentication();
         }
       }
     );
-  };
+  }
 
-  hashauth.hash = function hash () {
-    return hashauth.apisecrethash;
-  };
+  hash() {
+    return this.apisecrethash;
+  }
 
-  hashauth.isAuthenticated = function isAuthenticated () {
-    return hashauth.authenticated || hashauth.tokenauthenticated;
-  };
-
-  hashauth.initialized = true;
-
-  return hashauth;
+  isAuthenticated() {
+    return this.authenticated || this.tokenauthenticated;
+  }
 }
 
-module.exports = hashauth;
+module.exports = HashAuth;

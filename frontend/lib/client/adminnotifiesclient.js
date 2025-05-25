@@ -1,103 +1,136 @@
-'use strict';
+"use strict";
 
-function init (client, $) {
+class AdminNotifiesClient {
+  /**
+   * @param {import(".")} client
+   * @param {JQueryStatic} $
+   */
+  constructor(client, $) {
+    /** @protected */
+    this.client = client;
+    /** @protected */
+    this.$ = $;
 
-  var notifies = {};
+    /** @protected @type {(import("../types").Notify & {[K in "count" | "lastRecorded"]: NonNullable<import("../types").Notify>})[]} */
+    this.notifies = [];
+    /** @protected @type {number | undefined} */
+    this.notifyCount = undefined;
+    /** @protected */
+    this.drawer = $("#adminNotifiesDrawer");
+    /** @protected */
+    this.button = $("#adminnotifies");
 
-  client.notifies = notifies;
+    this.updateAdminNotifies();
 
-  notifies.notifies = [];
-  notifies.drawer = $('#adminNotifiesDrawer');
-  notifies.button = $('#adminnotifies');
-
-  notifies.updateAdminNotifies = function updateAdminNotifies() {
-
-    var src = '/api/v1/adminnotifies?t=' + new Date().getTime();
-
-    $.ajax({
-      method: 'GET'
-      , url: src
-      , headers: client.headers()
-    }).done(function success (results) {
-      if (results.message) {
-        var m = results.message;
-        client.notifies.notifies = m.notifies;
-        client.notifies.notifyCount = m.notifyCount;
-        if (m.notifyCount > 0) {
-          notifies.button.show();
-        }
-      }
-      window.setTimeout(notifies.updateAdminNotifies, 1000*60);
-    }).fail(function fail () {
-      console.error('Failed to load notifies');
-      window.setTimeout(notifies.updateAdminNotifies, 1000*60);
+    this.button.on("click", (event) => {
+      this.client.browserUtils.toggleDrawer("#adminNotifiesDrawer", () => {
+        this.prepare();
+        event.preventDefault();
+      });
     });
+    this.button.css("color", "red");
   }
 
-  notifies.updateAdminNotifies();
+  updateAdminNotifies() {
+    this.$.ajax({
+      method: "GET",
+      url: `/api/v1/adminnotifies?t=${new Date().getTime()}`,
+      headers: this.client.headers(),
+    })
+      .done((results) => {
+        if (results.message) {
+          const message = results.message;
 
-  function wrapmessage(title, message, count, ago, persistent) {
-    let html = '<hr><p><b>' + title + '</b></p><p class="adminNotifyMessage">' + message + '</p>';
+          this.notifies = message.notifies;
+          this.notifyCount = message.notifyCount;
 
-    let additional = '';
+          if (message.notifyCount > 0) this.button.show();
+        }
 
-    if (count > 1) additional += client.translate('Event repeated %1 times.', count) + ' ';
-    let units = client.translate('minutes');
-    if (ago > 60) {
-      ago = ago / 60;
-      ago = Math.round((ago + Number.EPSILON) * 10) / 10;
-      units = client.translate('hours');
-    }
-    if (ago == 0) { ago = client.translate('less than 1'); }
-    if (!persistent && ago) additional += client.translate('Last recorded %1 %2 ago.', ago, units);
+        window.setTimeout(() => this.updateAdminNotifies(), 1000 * 60);
+      })
+      .fail(() => {
+        console.error("Failed to load notifies");
 
-    if (additional) html += '<p class="adminNotifyMessageAdditionalInfo">' + additional + '</p>'
-    return html;
+        window.setTimeout(() => this.updateAdminNotifies(), 1000 * 60);
+      });
   }
 
-  notifies.prepare = function prepare() {
-
-    var translate = client.translate;
-
-    var html = '<div id="adminNotifyContent">';
-    var messages = client.notifies.notifies;
-    var messageCount = client.notifies.notifyCount;
-
-    if (messages && messages.length > 0) {
-      html += '<p><b>' + translate('You have administration messages') + '</b></p>';
-      for(var i = 0 ; i < messages.length; i++) {
-        /* eslint-disable-next-line security/detect-object-injection */ // verified false positive
-        var m = messages[i];
-        const ago = Math.round((Date.now() - m.lastRecorded) / 60000);
-        html += wrapmessage(translate(m.title), translate(m.message), m.count, ago, m.persistent);
+  /**
+   * @param {object} opts
+   * @param {string} opts.title
+   * @param {string} opts.message
+   * @param {number} [opts.count]
+   * @param {number} [opts.ago]
+   * @param {boolean} [opts.persistent]
+   */
+  #wrapmessage({ title, message, count, ago, persistent }) {
+    const translate = this.client.translate;
+    return `<hr />
+    <p><b>${title}</b></p>
+    <p class="adminNotifyMessage">${message}</p>
+    <p class="adminNotifyMessageAdditionalInfo">
+      ${count && count > 1 ? translate("Event repeated %1 times.", { params: [count.toString()] }) : ""}
+      ${
+        !persistent
+          ? translate("Last recorded %1 %2 ago.", {
+              params: [
+                (!!ago && ago > 60
+                  ? Math.round((ago / 60 + Number.EPSILON) * 10) / 10
+                  : ago || translate("less than 1")
+                ).toString(),
+                translate(!!ago && ago > 60 ? "hours" : "minutes"),
+              ],
+            })
+          : ""
       }
-    } else {
-      if (messageCount > 0) {
-        html = wrapmessage(translate('Admin messages in queue'), translate('Please sign in using the API_SECRET to see your administration messages'));
+    </p>`;
+  }
+
+  #drawerHtml() {
+    /** @type {ReturnType<import("../language")>["translate"]} */
+    const translate = this.client.translate;
+
+    if (!this.notifies) {
+      if (this.notifyCount) {
+        return this.#wrapmessage({
+          title: translate("Admin messages in queue"),
+          message: translate(
+            "Please sign in using the API_SECRET to see your administration messages"
+          ),
+        });
       } else {
-        html = wrapmessage(translate('Queue empty'), translate('There are no admin messages in queue'));
+        return this.#wrapmessage({
+          title: translate("Queue empty"),
+          message: translate("There are no admin messages in queue"),
+        });
       }
     }
-    html += '<hr></div>';
-    notifies.drawer.html(html);
+
+    return `
+    <div id="adminNotifyContent">
+      <p><b>${translate("You have administration messages")}</b></p>
+      ${this.notifies.map((m) =>
+        this.#wrapmessage({
+          title: this.client.language.isTranslationKey(m.title)
+            ? translate(m.title)
+            : m.title,
+          message: this.client.language.isTranslationKey(m.message)
+            ? translate(m.message)
+            : m.message,
+          count: m.count,
+          ago: Math.round((Date.now() - m.lastRecorded) / 60000),
+          persistent: m.persistent,
+        })
+      )}
+      <br />
+    </div>
+    `;
   }
 
-  function maybePrevent (event) {
-    if (event) {
-      event.preventDefault();
-    }
+  prepare() {
+    this.drawer.html(this.#drawerHtml());
   }
-
-  notifies.toggleDrawer = function toggleDrawer (event) {
-    client.browserUtils.toggleDrawer('#adminNotifiesDrawer', notifies.prepare);
-    maybePrevent(event);
-  };
-
-  notifies.button.click(notifies.toggleDrawer);
-  notifies.button.css('color','red');
-
-  return notifies;
-
 }
 
-module.exports = init;
+module.exports = AdminNotifiesClient;

@@ -1,33 +1,38 @@
-'use strict';
-var Stream = require('stream');
+"use strict";
+const Stream = require("stream");
 
-function init (settings) {
-  var beats = 0;
-  var started = new Date( );
-  var interval = settings.heartbeat * 1000;
+/** @param {ReturnType<import("./settings")>} settings */
+function init(settings) {
+  let beats = 0;
+  const started = new Date();
+  const interval = settings.heartbeat * 1000;
+  /** @type {NodeJS.Timeout} */
   let busInterval;
 
-  var stream = new Stream;
+  const stream =
+    /** @type {Stream & {teardown: () => void; readable: Boolean; uptime: () => void}} */ (
+      new Stream()
+    );
 
-  function ictus ( ) {
+  function ictus() {
     return {
-      now: new Date( )
-    , type: 'heartbeat'
-    , sig: 'internal://' + ['heartbeat', beats ].join('/')
-    , beat: beats++
-    , interval: interval
-    , started: started
+      now: new Date(),
+      type: "heartbeat",
+      sig: "internal://" + ["heartbeat", beats].join("/"),
+      beat: beats++,
+      interval: interval,
+      started: started,
     };
   }
 
-  function repeat ( ) {
-    stream.emit('tick', ictus( ));
+  function repeat() {
+    stream.emit("tick", ictus());
   }
 
-  stream.teardown = function ( ) {
-    console.log('Initiating server teardown');
+  stream.teardown = function () {
+    console.log("Initiating server teardown");
     clearInterval(busInterval);
-    stream.emit('teardown');
+    stream.emit("teardown");
   };
 
   stream.readable = true;
@@ -36,4 +41,3 @@ function init (settings) {
   return stream;
 }
 module.exports = init;
-
