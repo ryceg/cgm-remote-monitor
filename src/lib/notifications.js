@@ -1,6 +1,6 @@
 "use strict";
 
-const { THIRTY_MINUTES } = require("./constants");
+const { THIRTY_MINUTES } = require("@consts");
 
 const DEFAULT_GROUPS = ["default"];
 

@@ -2,7 +2,7 @@
 
 const traverse = require('traverse');
 const ObjectID = require('mongodb').ObjectID;
-const dayjs = require('../utils/dayjs');
+const dayjs = require('@dayjs');
 
 const TWO_DAYS = 172800000;
 /**

@@ -8,7 +8,7 @@ function boot (env, language) {
 
   function startBoot(ctx, next) {
 
-    const dayjs = require('../utils/dayjs');
+    const dayjs = require('@dayjs');
     console.log('Executing startBoot');
 
     ctx.bootErrors = [ ];

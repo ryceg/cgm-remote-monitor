@@ -17,7 +17,7 @@ require('../node_modules/flot/jquery.flot.time');
 require('../node_modules/flot/jquery.flot.pie');
 require('../node_modules/flot/jquery.flot.fillbetween');
 
-const dayjs = require('../lib/utils/dayjs');
+const dayjs = require('@dayjs');
 
 window.dayjs = dayjs;
 

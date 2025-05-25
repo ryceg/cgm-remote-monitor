@@ -43,11 +43,11 @@ export default defineConfig({
       $: "jquery",
       jQuery: "jquery",
     }),
-  ],
-  resolve: {
+  ],  resolve: {
     alias: {
-      '@utils': resolve(__dirname, 'frontend/lib/utils'),
-      '@dayjs': resolve(__dirname, 'frontend/lib/utils/dayjs'),
+      '@utils': resolve(__dirname, 'lib/utils'),
+      '@dayjs': resolve(__dirname, 'lib/utils/dayjs'),
+      '@consts': resolve(__dirname, 'lib/constants'),
       stream: "stream-browserify",
     },
   },

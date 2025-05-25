@@ -1,5 +1,5 @@
 'use strict';
-const dayjs = require('../utils/dayjs')
+const dayjs = require('@dayjs')
 
 var find_options = require('./query');
 

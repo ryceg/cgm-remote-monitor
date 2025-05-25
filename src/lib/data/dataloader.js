@@ -2,7 +2,7 @@
 
 const async = require('async');
 const fitTreatmentsToBGCurve = require('./treatmenttocurve');
-const constants = require('../constants');
+const constants = require('@consts');
 
 function uniqBasedOnMills(a) {
     var seen = {};

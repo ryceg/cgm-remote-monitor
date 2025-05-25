@@ -13,7 +13,7 @@
  */
 
 
-const constants = require('../constants');
+const constants = require('@consts');
 
 function cache (env, ctx) {
 

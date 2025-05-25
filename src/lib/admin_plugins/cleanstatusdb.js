@@ -1,7 +1,6 @@
 'use strict';
 
-var dayjs;
-
+const dayjs = require('@dayjs');
 var cleanstatusdb = {
   name: 'cleanstatusdb'
   , label: 'Clean Mongo status database'
@@ -9,7 +8,6 @@ var cleanstatusdb = {
 };
 
 function init (ctx) {
-  dayjs = ctx.dayjs;
   return cleanstatusdb;
 }
 

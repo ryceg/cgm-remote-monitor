@@ -1,6 +1,6 @@
 'use strict';
 
-var dayjs = require('../utils/dayjs')
+var dayjs = require('@dayjs')
 
 var cleanentriesdb = {
   name: 'cleanentriesdb'

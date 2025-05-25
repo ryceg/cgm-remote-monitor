@@ -1,6 +1,6 @@
 "use strict";
 
-const { ONE_HOUR } = require("./constants");
+const { ONE_HOUR } = require("@consts");
 
 class AdminNotifies {
   /**
@@ -54,7 +54,7 @@ class AdminNotifies {
   }
 
   clean() {
-    this.notifies = this.notifies.filter(
+    this.notifies = this.notifies?.filter(
       (obj) => obj.persistent || Date.now() - obj.lastRecorded < 12 * ONE_HOUR
     );
   }

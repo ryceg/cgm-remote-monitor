@@ -26,7 +26,7 @@
     "url": "https://github.com/nightscout/cgm-remote-monitor/issues"
   },
   "scripts": {
-    "start": "node lib/server/server.js",
+    "start": "node src/lib/server/server.js",
     "test": "env-cmd -f ./my.test.env mocha --timeout 5000 --require ./tests/hooks.js -exit ./tests/*.test.js",
     "test-single": "env-cmd -f ./my.test.env mocha --timeout 5000 --require ./tests/hooks.js --exit ./tests/$TEST.test.js",
     "test-ci": "env-cmd -f ./tests/ci.test.env nyc --reporter=lcov --reporter=text-summary mocha --timeout 5000 --require ./tests/hooks.js --exit ./tests/*.test.js",
@@ -37,12 +37,12 @@
     "bundle-analyzer": "webpack --mode development --config webpack/webpack.config.js --profile --json > stats.json && webpack-bundle-analyzer stats.json",
     "post-generate-keys": "node bin/generateRandomString.js >node_modules/.cache/_ns_cache/randomString",
     "coverage": "cat ./coverage/lcov.info | env-cmd -f ./tests/ci.test.env codacy-coverage || echo NO COVERAGE",
-    "dev": "env-cmd -f ./my.env nodemon --inspect lib/server/server.js 0.0.0.0",
-    "dev-test": "env-cmd -f ./my.devtest.env nodemon --inspect lib/server/server.js 0.0.0.0",
-    "prod": "env-cmd -f ./my.prod.env node lib/server/server.js 0.0.0.0",
+    "dev": "env-cmd -f ./my.env nodemon --inspect src/lib/server/server.js 0.0.0.0",
+    "dev-test": "env-cmd -f ./my.devtest.env nodemon --inspect src/lib/server/server.js 0.0.0.0",
+    "prod": "env-cmd -f ./my.prod.env node src/lib/server/server.js 0.0.0.0",
     "lint": "eslint lib"
   },
-  "main": "lib/server/server.js",
+  "main": "src/lib/server/server.js",
   "nodemonConfig": {
     "ignore": [
       "tests/*",

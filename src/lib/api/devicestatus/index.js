@@ -1,7 +1,7 @@
 'use strict';
 
-const consts = require('../../constants');
-const dayjs = require("../../utils/dayjs");
+const consts = require('../@consts');
+const dayjs = require("@dayjs");
 
 function configure (app, wares, ctx, env) {
   var express = require('express')

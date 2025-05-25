@@ -1,6 +1,6 @@
 "use strict";
 
-var constants = require("./constants");
+var constants = require("@consts");
 
 class Levels {
   URGENT = constants.LEVEL_URGENT;

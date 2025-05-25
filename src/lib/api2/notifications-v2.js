@@ -1,6 +1,6 @@
 'use strict';
 
-var consts = require('../constants');
+var consts = require('@consts');
 
 function configure (app, ctx) {
   var express = require('express')
@@ -13,7 +13,7 @@ function configure (app, ctx) {
       limit: '50Mb'
   }));
   api.use(ctx.wares.urlencodedParser);
-  
+
   api.post('/loop', ctx.authorization.isPermitted('notifications:loop:push'), function (req, res) {
     ctx.loop.sendNotification(req.body, req.connection.remoteAddress, function (error) {
       if (error) {

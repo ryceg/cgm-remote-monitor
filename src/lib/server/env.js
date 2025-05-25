@@ -7,7 +7,7 @@ const mongoParser = require('mongo-url-parser');
 const stringEntropy = require('fast-password-entropy')
 
 const fs = require('fs');
-const consts = require('../constants');
+const consts = require('@consts');
 
 const env = {
   settings: require('../settings')()

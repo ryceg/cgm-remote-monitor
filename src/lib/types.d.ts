@@ -32,7 +32,7 @@ export type Notify = NotifyBase & {
 export type Snooze = NotifyBase & { lengthMills: number };
 
 export type Level =
-  (typeof import("./constants"))[`LEVEL_${"URGENT" | "WARN" | "INFO" | "LOW" | "LOWEST" | "NONE"}`];
+  (typeof import("@consts"))[`LEVEL_${"URGENT" | "WARN" | "INFO" | "LOW" | "LOWEST" | "NONE"}`];
 
 export type Profile = {
   defaultProfile?: string;

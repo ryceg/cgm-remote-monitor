@@ -1,5 +1,5 @@
 'use strict';
-const dayjs = require('../../utils/dayjs');
+const dayjs = require('@dayjs');
 const stringTools = require('./stringTools');
 const apiConst = require('../const.json');
 

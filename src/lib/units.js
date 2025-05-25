@@ -1,6 +1,6 @@
 "use strict";
 
-var consts = require("./constants");
+var consts = require("@consts");
 
 /** @param {number} mgdl */
 function mgdlToMMOL(mgdl) {

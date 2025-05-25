@@ -1,6 +1,6 @@
 var should = require("should");
 const helper = require("./inithelper")();
-const dayjs = require('../lib@dayjs')
+const dayjs = require('../lib/utils/dayjs')
 
 describe("Profile", function () {
   var profile_empty = require("../lib/profilefunctions")(null, helper.ctx);

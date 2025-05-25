@@ -1,7 +1,7 @@
 "use strict";
 
 const times = require("../times");
-const consts = require("../constants");
+const consts = require("@consts");
 
 /**
  * Deep equality check for objects and arrays

@@ -3,7 +3,7 @@
 var es = require('event-stream');
 var find_options = require('./query');
 var ObjectID = require('mongodb').ObjectID;
-var dayjs = require('../utils/dayjs');
+var dayjs = require('@dayjs');
 
 /**********\
  * Entries

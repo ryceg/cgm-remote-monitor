@@ -1,7 +1,7 @@
 'use strict';
 
-const constants = require('../../../../lib/constants');
-const dayjs = require('../../../../lib/utils/dayjs');
+const constants = require('@consts');
+const dayjs = require('@dayjs');
 
 function configure (app, wares, ctx, env) {
   var express = require('express')

@@ -1,6 +1,6 @@
 'use strict';
 
-var consts = require('../constants');
+var consts = require('@consts');
 var pick = require('../utils/pick');
 
 const MAX_BG_MMOL = 22;

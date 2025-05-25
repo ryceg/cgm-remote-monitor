@@ -2,7 +2,7 @@
 
 require('should');
 
-const dayjs = require('../lib/utils/dayjs');
+const dayjs = require('../lib@dayjs');
 
 describe('query', function ( ) {
   var query = require('../lib/server/query');

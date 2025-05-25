@@ -2,7 +2,7 @@
 
 const parse_duration = require("parse-duration"); // https://www.npmjs.com/package/parse-duration
 const times = require("../times");
-const consts = require("../constants");
+const consts = require("@consts");
 const Storages = require("js-storage");
 
 /** @typedef {import("../types").PluginEventType} PluginEventType */

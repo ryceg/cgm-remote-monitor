@@ -1,6 +1,6 @@
 'use strict';
 
-const dayjs = require('../utils/dayjs');
+const dayjs = require('@dayjs');
 
 function get_time_spec (spec) {
   return dayjs(spec).toDate();

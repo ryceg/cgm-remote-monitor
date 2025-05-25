@@ -22,7 +22,13 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "paths": {
+      "@/*": ["./lib/*"],
+      "@utils/*": ["./lib/utils/*"],
+      "@dayjs/*": ["./lib/utils/dayjs"],
+      "@consts": ["./lib/constants"],
+    }
   },
   "include": [
     "global.d.ts",

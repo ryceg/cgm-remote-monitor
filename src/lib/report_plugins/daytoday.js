@@ -1,6 +1,6 @@
 "use strict";
 
-var dayjs = '../utils/dayjs'
+var dayjs = require('@dayjs')
 var times = require("../times");
 var d3 = (global && global.d3) || require("d3");
 

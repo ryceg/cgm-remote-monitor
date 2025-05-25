@@ -1,7 +1,7 @@
 'use strict';
 
 var async = require('async');
-const dayjs = require('../utils/dayjs');
+const dayjs = require('@dayjs');
 
 var find_options = require('./query');
 

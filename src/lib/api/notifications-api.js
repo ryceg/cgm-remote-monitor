@@ -1,6 +1,6 @@
 'use strict';
 
-var consts = require('../../../lib/constants');
+var consts = require('@consts');
 var bodyParser = require('body-parser');
 
 function configure (app, wares, ctx) {

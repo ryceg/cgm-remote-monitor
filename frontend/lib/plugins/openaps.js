@@ -3,7 +3,7 @@
 /** @import {Dayjs} from "dayjs" */
 
 const times = require("../times");
-const consts = require("@consts");
+const consts = require("../constants");
 
 /** @import {Plugin, PluginEventType, DeviceStatus, OpenApsIob, OpenApsPredBGs, VirtAsstIntentHandlerFn} from "../types" */
 /** @import {Sbx, InitializedSandbox, ClientInitializedSandbox} from "../sandbox" */

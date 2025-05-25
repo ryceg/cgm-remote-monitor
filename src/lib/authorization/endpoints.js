@@ -3,7 +3,7 @@
 var express = require('express');
 var pick = require('../utils/pick');
 
-var consts = require('./../constants');
+var consts = require('./@consts');
 
 function init (env, authorization) {
   var endpoints = express( );

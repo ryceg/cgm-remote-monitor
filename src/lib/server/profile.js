@@ -1,7 +1,7 @@
 'use strict';
 
 var find_options = require('./query');
-var consts = require('../constants');
+var consts = require('@consts');
 
 function storage (collection, ctx) {
    var ObjectID = require('mongodb').ObjectID;
@@ -87,7 +87,7 @@ function storage (collection, ctx) {
   function api () {
     return ctx.store.collection(collection);
   }
-  
+
   api.list = list;
   api.list_query = list_query;
   api.create = create;

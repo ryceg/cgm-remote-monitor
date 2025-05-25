@@ -1,8 +1,8 @@
 'use strict';
 
-const dayjs = require('../../../../lib/utils/dayjs');
+const dayjs = require('@dayjs');
 
-const consts = require('../../../../lib/constants');
+const consts = require('@consts');
 const es = require('event-stream');
 const braces = require('braces');
 const expand = braces.expand;

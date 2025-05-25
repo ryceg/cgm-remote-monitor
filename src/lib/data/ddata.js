@@ -1,7 +1,7 @@
 "use strict";
 
 const times = require("../times");
-const consts = require("../constants");
+const consts = require("@consts");
 const profilefunctions = require("../profilefunctions");
 
 const DEVICE_TYPE_FIELDS =
