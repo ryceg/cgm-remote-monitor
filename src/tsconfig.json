@@ -26,7 +26,7 @@
     "paths": {
       "@/*": ["./lib/*"],
       "@utils/*": ["./lib/utils/*"],
-      "@dayjs/*": ["./lib/utils/dayjs"],
+      "@dayjs": ["./lib/utils/dayjs"],
       "@consts": ["./lib/constants"],
     }
   },
