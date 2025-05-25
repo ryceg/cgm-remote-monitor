@@ -51,7 +51,7 @@ describe("renderer", () => {
       },
     ];
 
-    _.forEach(BRUSH_EXTENTS, (extent) => {
+    BRUSH_EXTENTS.forEach((extent) => {
       let mockData = {
         mills: extent.mills,
       };

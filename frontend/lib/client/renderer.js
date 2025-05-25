@@ -5,8 +5,8 @@ const consts = require("../constants");
 
 /**
  * Deep equality check for objects and arrays
- * @param {any} a 
- * @param {any} b 
+ * @param {any} a
+ * @param {any} b
  * @returns {boolean}
  */
 function isEqual(a, b) {

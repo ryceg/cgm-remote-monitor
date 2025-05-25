@@ -1,6 +1,6 @@
 "use strict";
 
-import { Dayjs } from "dayjs";
+/** @import {Dayjs} from "dayjs" */
 
 const times = require("../times");
 const consts = require("../constants");
