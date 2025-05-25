@@ -6,14 +6,14 @@ import { resolve } from "path";
 const isDevelopment = process.env.NODE_ENV === "development";
 
 export default defineConfig({
-  root: "./bundle",
+  root: resolve(__dirname, "bundle"),
   appType: "mpa",
-  publicDir: "public",
-  build: {
+  publicDir: "public",  build: {
     sourcemap: true,
     minify: !isDevelopment,
-    outDir: `../dist`,
+    outDir: resolve(__dirname, "../dist"),
     emptyOutDir: true,
+    cssCodeSplit: false,
     rollupOptions: {
       input: {
         profile: resolve(__dirname, "bundle/profile/index.html"),
@@ -22,6 +22,9 @@ export default defineConfig({
         report: resolve(__dirname, "bundle/report/index.html"),
         clock: resolve(__dirname, "bundle/clock/index.html"),
         main: resolve(__dirname, "bundle/index.html"),
+      },
+      output: {
+        manualChunks: undefined,
       },
     },
     target: "es2015",
@@ -43,7 +46,8 @@ export default defineConfig({
       $: "jquery",
       jQuery: "jquery",
     }),
-  ],  resolve: {
+  ],
+  resolve: {
     alias: {
       '@utils': resolve(__dirname, 'lib/utils'),
       '@dayjs': resolve(__dirname, 'lib/utils/dayjs'),
