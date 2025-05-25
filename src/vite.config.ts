@@ -52,6 +52,7 @@ export default defineConfig({
       '@utils': resolve(__dirname, 'lib/utils'),
       '@dayjs': resolve(__dirname, 'lib/utils/dayjs'),
       '@consts': resolve(__dirname, 'lib/constants'),
+      '@language': resolve(__dirname, 'lib/language'),
       stream: "stream-browserify",
     },
   },

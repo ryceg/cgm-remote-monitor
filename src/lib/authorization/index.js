@@ -2,7 +2,7 @@
 
 const shiroTrie = require('shiro-trie');
 
-const consts = require('./@consts');
+const consts = require('@consts');
 const sleep = require('util').promisify(setTimeout);
 const forwarded = require('forwarded-for');
 

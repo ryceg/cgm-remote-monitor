@@ -34,7 +34,8 @@
     "postinstall": "cd src/bundle && vite build --config ../vite.config.ts && cd ../.. && npm run-script post-generate-keys",
     "bundle": "cd src/bundle && vite build --config ../vite.config.ts && cd ../.. && npm run-script post-generate-keys",
     "bundle-dev": "cd src/bundle && vite build --mode development --config ../vite.config.ts && cd ../.. && npm run-script post-generate-keys",
-    "bundle-analyzer": "vite-bundle-analyzer dist",    "vite-dev": "cd src/bundle && vite --config ../vite.config.ts",
+    "bundle-analyzer": "vite-bundle-analyzer dist",
+    "vite-dev": "cd src/bundle && vite --config ../vite.config.ts",
     "vite-preview": "cd src/bundle && vite preview --config ../vite.config.ts",
     "post-generate-keys": "node bin/generateRandomString.js >node_modules/.cache/_ns_cache/randomString",
     "coverage": "cat ./coverage/lcov.info | env-cmd -f ./tests/ci.test.env codacy-coverage || echo NO COVERAGE",
@@ -132,6 +133,7 @@
     "vite-plugin-commonjs": "^0.7.0"
   },
   "devDependencies": {
+    "@types/express": "^5.0.2",
     "@types/tough-cookie": "^4.0.0",
     "axios": "^0.21.1",
     "babel-eslint": "^10.1.0",

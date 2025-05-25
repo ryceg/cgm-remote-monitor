@@ -1,6 +1,6 @@
 'use strict';
 
-const consts = require('../@consts');
+const consts = require('@consts');
 const dayjs = require("@dayjs");
 
 function configure (app, wares, ctx, env) {

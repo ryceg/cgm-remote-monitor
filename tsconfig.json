@@ -7,8 +7,8 @@
     "skipLibCheck": true,
     "checkJs": true,
     "noImplicitAny": true,
-
-    // "typeRoots": ["./@types"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -23,19 +23,30 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
+
+    /* Path mapping */
+    "baseUrl": "./src",
     "paths": {
       "@/*": ["./lib/*"],
       "@utils/*": ["./lib/utils/*"],
       "@dayjs": ["./lib/utils/dayjs"],
       "@consts": ["./lib/constants"],
+      "@language": ["./lib/language"],
     }
   },
   "include": [
-    "global.d.ts",
-    "@types/jquery/jquery.d.ts",
-    "@types/js-storage/js-storage.d.ts",
-    "@types/d3/d3.d.ts",
-    "lib/types.d.ts",
-    "lib/**/*.js"
+    "src/**/*",
+    "src/global.d.ts",
+    "src/@types/jquery/jquery.d.ts",
+    "src/@types/js-storage/js-storage.d.ts",
+    "src/@types/d3/d3.d.ts",
+    "src/lib/types.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "bundle",
+    "webpack",
+    "tests"
   ]
 }

@@ -15,6 +15,7 @@ function create (env, ctx) {
   // Only allow access to the API if API KEY is set on the server.
   app.disable('api');
   if (env.enclave.isApiKeySet()) {
+    console.log(env.API_SECRET)
     console.log('API KEY present, enabling API');
     app.enable('api');
   } else {

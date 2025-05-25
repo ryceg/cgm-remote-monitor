@@ -22,6 +22,9 @@
 // the Dexcom SGV data.
 'use strict';
 
+// Setup module aliases for Node.js to match Vite path aliases
+require('../../alias-setup');
+
 ///////////////////////////////////////////////////
 // DB Connection setup and utils
 ///////////////////////////////////////////////////

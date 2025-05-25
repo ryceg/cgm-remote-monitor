@@ -1,6 +1,6 @@
 'use strict';
 
-var consts = require('../@consts');
+var consts = require('@consts');
 
 function configure (app, wares, ctx) {
     var express = require('express'),

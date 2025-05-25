@@ -181,7 +181,7 @@ function create (env, ctx) {
   ///////////////////////////////////////////////////
   // api and json object variables
   ///////////////////////////////////////////////////
-  const apiRoot = require('../api/root')(env, ctx);
+  const apiRoot = require('../api/root')();
   var api = require('../api/')(env, ctx);
   var api2 = require('../api2/')(env,ctx, api);
   var api3 = require('../api3/')(env, ctx);
@@ -292,21 +292,9 @@ function create (env, ctx) {
     app.locals.mode = 'development';
     app.locals.bundle = '/devbundle';
 
-    const webpack = require('webpack');
-    const webpack_conf = require('../../webpack/webpack.config');
-    const middleware = require('webpack-dev-middleware');
-    const compiler = webpack(webpack_conf);
-
-    app.use(
-      middleware(compiler, {
-        // webpack-dev-middleware options
-        publicPath: webpack_conf.output.publicPath
-      })
-    );
-
-    app.use(require("webpack-hot-middleware")(compiler, {
-      heartbeat: 1000
-    }));
+    // Note: In development mode, run Vite server separately
+    // You can start the Vite dev server with: npm run vite-dev
+    console.log('For development, run Vite dev server separately with: npm run vite-dev');
   }
 
   // Production bundling

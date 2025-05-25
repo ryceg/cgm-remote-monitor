@@ -2,7 +2,7 @@
 'use strict';
 
 require('should');
-var language = require('../lib/language')();
+var language = require('@language')();
 
 const ctx = {};
 
