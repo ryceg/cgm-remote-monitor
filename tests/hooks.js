@@ -1,3 +1,4 @@
+require('module-alias/register');
 'use strict;'
 
 function clearRequireCache () {

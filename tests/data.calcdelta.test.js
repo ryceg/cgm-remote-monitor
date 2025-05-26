@@ -2,7 +2,7 @@
 
 require('should');
 
-var calcDelta = require('../lib/data/calcdelta');
+var calcDelta = require('../src/lib/data/calcdelta');
 
 describe('Data', function ( ) {
 
@@ -10,14 +10,14 @@ describe('Data', function ( ) {
   var before = now - (5 * 60 * 1000);
 
   it('should return original data if there are no changes', function() {
-    var ddata = require('../lib/data/ddata')();
+    var ddata = require('../src/lib/data/ddata')();
     ddata.sgvs = [{mgdl: 100, mills: before},{mgdl: 100, mills: now}];
     var delta = calcDelta(ddata,ddata);
     delta.should.equal(ddata);
   });
 
   it('adding one sgv record should return delta with one sgv', function() {
-    var ddata = require('../lib/data/ddata')();
+    var ddata = require('../src/lib/data/ddata')();
     ddata.sgvs = [{mgdl: 100, mills: before},{mgdl: 100, mills: now}];
     var newData = ddata.clone();
     newData.sgvs = [{mgdl: 100, mills:101},{mgdl: 100, mills: before},{mgdl: 100, mills: now}];
@@ -27,7 +27,7 @@ describe('Data', function ( ) {
   });
 
   it('should update sgv if changed', function() {
-    var ddata = require('../lib/data/ddata')();
+    var ddata = require('../src/lib/data/ddata')();
     ddata.sgvs = [{mgdl: 100, mills: before},{mgdl: 100, mills: now}];
     var newData = ddata.clone();
     newData.sgvs = [{mgdl: 110, mills: before},{mgdl: 100, mills: now}];
@@ -37,7 +37,7 @@ describe('Data', function ( ) {
   });
 
   it('adding one treatment record should return delta with one treatment', function() {
-    var ddata = require('../lib/data/ddata')();
+    var ddata = require('../src/lib/data/ddata')();
     ddata.treatments = [{_id: 'someid_1', mgdl: 100, mills: before},{_id: 'someid_2', mgdl: 100, mills: now}];
     var newData = ddata.clone();
     newData.treatments = [{_id: 'someid_1', mgdl: 100, mills: before},{_id: 'someid_2', mgdl: 100, mills: now},{_id: 'someid_3', mgdl: 100, mills:98}];
@@ -47,7 +47,7 @@ describe('Data', function ( ) {
   });
 
   it('changes to treatments, mbgs and cals should be calculated even if sgvs is not changed', function() {
-    var ddata = require('../lib/data/ddata')();
+    var ddata = require('../src/lib/data/ddata')();
     ddata.sgvs = [{mgdl: 100, mills: before},{mgdl: 100, mills: now}];
     ddata.treatments = [{_id: 'someid_1', mgdl: 100, mills: before},{_id: 'someid_2', mgdl: 100, mills: now}];
     ddata.mbgs = [{mgdl: 100, mills: before},{mgdl: 100, mills: now}];
@@ -65,7 +65,7 @@ describe('Data', function ( ) {
   });
 
   it('delta should include profile', function() {
-    var ddata = require('../lib/data/ddata')();
+    var ddata = require('../src/lib/data/ddata')();
     ddata.sgvs = [{mgdl: 100, mills: before},{mgdl: 100, mills: now}];
     ddata.profiles = {foo:true};
     var newData = ddata.clone();

@@ -4,7 +4,7 @@ var should = require('should');
 var assert = require('assert');
 
 describe('mongo storage', function () {
-  var env = require('../lib/server/env')();
+  var env = require('../src/lib/server/env')();
 
   before(function (done) {
     delete env.api_secret;
@@ -12,12 +12,12 @@ describe('mongo storage', function () {
   });
 
   it('The module should be OK.', function (done) {
-    should.exist(require('../lib/storage/mongo-storage'));
+    should.exist(require('../src/lib/storage/mongo-storage'));
     done();
   });
 
   it('After initializing the storage class it should re-use the open connection', function (done) {
-    var store = require('../lib/storage/mongo-storage');
+    var store = require('../src/lib/storage/mongo-storage');
     store(env, function (err1, db1) {
       should.not.exist(err1);
 
@@ -35,7 +35,7 @@ describe('mongo storage', function () {
     should.not.exist(env.storageURI);
 
     (function () {
-      return require('../lib/storage/mongo-storage')(env, false, true);
+      return require('../src/lib/storage/mongo-storage')(env, false, true);
     }).should.throw('MongoDB connection string is missing. Please set MONGODB_URI environment variable');
 
     done();
@@ -46,7 +46,7 @@ describe('mongo storage', function () {
 
     (async function () {
       try {
-        let foo = await require('../lib/storage/mongo-storage')(env, false, true);
+        let foo = await require('../src/lib/storage/mongo-storage')(env, false, true);
         false.should.be.true();
       }
       catch (err) {
@@ -54,7 +54,7 @@ describe('mongo storage', function () {
         done();
       }
     })();
-    
+
   });
 
 });

@@ -2,7 +2,7 @@
 
 require('should');
 
-var extensionsMiddleware = require('../lib/middleware/express-extension-to-accept.js');
+var extensionsMiddleware = require('../src/lib/middleware/express-extension-to-accept.js');
 
 var acceptJsonRequests = extensionsMiddleware(['json']);
 

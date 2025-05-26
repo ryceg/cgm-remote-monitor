@@ -5,7 +5,7 @@
 var should = require('should');
 
 describe('mmconnect', function () {
-  var mmconnect = require('../lib/plugins/mmconnect');
+  var mmconnect = require('../src/lib/plugins/mmconnect');
 
   var env = {
     extendedSettings: {

@@ -1,7 +1,7 @@
 'use strict';
 
 require('should');
-var times = require('../lib/times');
+var times = require('../src/lib/times');
 var benv = require('benv');
 var read = require('fs').readFileSync;
 var serverSettings = require('./fixtures/default-server-settings');
@@ -95,15 +95,15 @@ describe('client', function ( ) {
   });
 
   it ('not blow up with mg/dl', function () {
-    var plugins = require('../lib/plugins/')().registerClientDefaults();
-    var client = require('../lib/client');
+    var plugins = require('../src/lib/plugins/')().registerClientDefaults();
+    var client = require('../src/lib/client');
     client.init(serverSettings, plugins);
     client.dataUpdate(nowData);
   });
 
   it ('handle 2 updates', function () {
-    var plugins = require('../lib/plugins/')().registerClientDefaults();
-    var client = require('../lib/client');
+    var plugins = require('../src/lib/plugins/')().registerClientDefaults();
+    var client = require('../src/lib/client');
     client.init(serverSettings, plugins);
     client.dataUpdate(nowData);
     client.dataUpdate(nextData);
@@ -113,19 +113,19 @@ describe('client', function ( ) {
     serverSettings.settings.units = 'mmol';
     serverSettings.settings.timeFormat = 24;
 
-    var plugins = require('../lib/plugins/')().registerClientDefaults();
-    var client = require('../lib/client');
+    var plugins = require('../src/lib/plugins/')().registerClientDefaults();
+    var client = require('../src/lib/client');
     client.init(serverSettings, plugins);
     client.dataUpdate(nowData);
   });
 
   it ('load, store, and clear settings', function () {
-    var plugins = require('../lib/plugins/')().registerClientDefaults();
-    var client = require('../lib/client');
+    var plugins = require('../src/lib/plugins/')().registerClientDefaults();
+    var client = require('../src/lib/client');
     client.init(serverSettings, plugins);
     client.dataUpdate(nowData);
 
-    var browserSettings = require('../lib/client/browser-settings')(client, plugins, serverSettings, self.$);
+    var browserSettings = require('../src/lib/client/browser-settings')(client, plugins, serverSettings, self.$);
     browserSettings.alarmTimeagoWarnMins.should.equal(99);
     browserSettings.customTitle.should.equal(TEST_TITLE);
 

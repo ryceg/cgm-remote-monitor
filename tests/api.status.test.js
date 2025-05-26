@@ -1,24 +1,24 @@
 'use strict';
 
 var request = require('supertest');
-var language = require('../lib/language')();
+var language = require('../src/lib/language')();
 
 require('should');
 
 describe('Status REST api', function ( ) {
-  var api = require('../lib/api/');
+  var api = require('../src/lib/api/');
   before(function (done) {
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.settings.enable = ['careportal', 'rawbg'];
     env.settings.authDefaultRoles = 'readable';
     env.api_secret = 'this is my long pass phrase';
-    this.wares = require('../lib/middleware/')(env);
+    this.wares = require('../src/lib/middleware/')(env);
     this.app = require('express')( );
     this.app.enable('api');
     var self = this;
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
+    require('../src/lib/server/bootevent')(env, language).boot(function booted (ctx) {
       self.app.use('/api', api(env, ctx));
       done();
     });

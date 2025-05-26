@@ -45,6 +45,13 @@
     "lint": "eslint lib"
   },
   "main": "src/lib/server/server.js",
+  "_moduleAliases": {
+    "@utils": "src/lib/utils",
+    "@dayjs": "src/lib/utils/dayjs",
+    "@consts": "src/lib/constants",
+    "@language": "src/lib/language",
+    "@lib": "src/lib"
+  },
   "nodemonConfig": {
     "ignore": [
       "tests/*",
@@ -107,7 +114,6 @@
     "memory-cache": "^0.2.0",
     "mime": "^2.4.6",
     "minimed-connect-to-nightscout": "^1.5.5",
-    "module-alias": "^2.2.3",
     "mongo-url-parser": "^1.0.2",
     "mongodb": "^3.6.0",
     "mongomock": "^0.1.2",
@@ -143,6 +149,7 @@
     "eslint": "^7.19.0",
     "eslint-plugin-security": "^1.4.0",
     "mocha": "^8.4.0",
+    "module-alias": "^2.2.3",
     "nodemon": "^2.0.19",
     "nyc": "^14.1.1",
     "rollup-plugin-visualizer": "^5.9.0",

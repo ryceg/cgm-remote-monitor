@@ -4,9 +4,9 @@ var request = require('supertest');
 var should = require('should');
 var Stream = require('stream');
 
-var levels = require('../lib/levels');
-var notificationsAPI = require('../lib/api/notifications-api');
-var language = require('../lib/language')(); // Import the language module
+var levels = require('../src/lib/levels');
+var notificationsAPI = require('../src/lib/api/notifications-api');
+var language = require('../src/lib/language')(); // Import the language module
 
 function examplePlugin () {}
 
@@ -17,7 +17,7 @@ describe('Notifications API', function ( ) {
     var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.enclave.isApiKey(known).should.equal(true);
     env.testMode = true;
 
@@ -35,9 +35,9 @@ describe('Notifications API', function ( ) {
       , language: language
     };
 
-    ctx.authorization = require('../lib/authorization')(env, ctx);
+    ctx.authorization = require('../src/lib/authorization')(env, ctx);
 
-    var notifications = require('../lib/notifications')(env, ctx);
+    var notifications = require('../src/lib/notifications')(env, ctx);
     ctx.notifications = notifications;
 
     //start fresh to we don't pick up other notifications
@@ -64,7 +64,7 @@ describe('Notifications API', function ( ) {
 
     var app = require('express')();
     app.enable('api');
-    var wares = require('../lib/middleware/')(env);
+    var wares = require('../src/lib/middleware/')(env);
     app.use('/', notificationsAPI(app, wares, ctx));
 
     function makeRequest () {

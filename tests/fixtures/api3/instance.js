@@ -1,12 +1,12 @@
 'use strict';
 
 var fs = require('fs')
-  , language = require('../../../lib/language')()
-  , api = require('../../../lib/api3/')
+  , language = require('@lib/language')()
+  , api = require('@lib/api3/')
   , http = require('http')
   , https = require('https')
   , request = require('supertest')
-  , websocket = require('../../../lib/server/websocket')
+  , websocket = require('@lib/server/websocket')
   , io = require('socket.io-client')
   , CacheMonitor = require('./cacheMonitor')
   ;
@@ -25,7 +25,7 @@ function configure () {
     process.env.API_SECRET = apiSecret;
 
     process.env.HOSTNAME = 'localhost';
-    const env = require('../../../lib/server/env')();
+    const env = require('@lib/server/env')();
 
     if (useHttps) {
       env.ssl = {
@@ -115,13 +115,13 @@ function configure () {
 
         instance.env = self.prepareEnv({ apiSecret, useHttps, authDefaultRoles, enable });
 
-        self.wares = require('../../../lib/middleware/')(instance.env);
+        self.wares = require('@lib/middleware/')(instance.env);
         instance.app = require('express')();
         instance.app.enable('api');
 
-        require('../../../lib/server/bootevent')(instance.env, language).boot(function booted (ctx) {
+        require('@lib/server/bootevent')(instance.env, language).boot(function booted (ctx) {
           instance.ctx = ctx;
-          instance.ctx.ddata = require('../../../lib/data/ddata')();
+          instance.ctx.ddata = require('@lib/data/ddata')();
           instance.ctx.apiApp = api(instance.env, ctx);
 
           if (disableSecurity) {

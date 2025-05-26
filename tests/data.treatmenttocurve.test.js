@@ -2,16 +2,16 @@
 
 require('should');
 
-var fitTreatmentsToBGCurve = require('../lib/data/treatmenttocurve');
+var fitTreatmentsToBGCurve = require('../src/lib/data/treatmenttocurve');
 
 describe('Data', function ( ) {
 
   var now = Date.now();
   var before = now - (5 * 60 * 1000);
-  var settings = require('../lib/settings')();
+  var settings = require('../src/lib/settings')();
 
   it('update treatment display BGs', function() {
-    var ddata = require('../lib/data/ddata')();
+    var ddata = require('../src/lib/data/ddata')();
     ddata.sgvs = [{mgdl: 90, mills: before},{mgdl: 100, mills: now}];
     ddata.treatments = [
       {_id: 'someid_1', mills: before, glucose: 100, units: 'mgdl'} //with glucose and units
@@ -24,7 +24,7 @@ describe('Data', function ( ) {
         settings: settings
       }
       , {
-        language: require('../lib/language')()
+        language: require('../src/lib/language')()
       }
     );
     ddata.treatments[0].mgdl.should.equal(100);

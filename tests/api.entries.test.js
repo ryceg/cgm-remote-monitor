@@ -2,15 +2,15 @@
 
 var request = require('supertest');
 var load = require('./fixtures/load');
-var bootevent = require('../lib/server/bootevent');
-var language = require('../lib/language')();
+var bootevent = require('../src/lib/server/bootevent');
+var language = require('../src/lib/language')();
 
 require('should');
 
 const FIVE_MINUTES=1000*60*5;
 
 describe('Entries REST api', function ( ) {
-  var entries = require('../frontend/lib/api/entries');
+  var entries = require('../src/lib/api/entries');
   var self = this;
   var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
 
@@ -18,15 +18,15 @@ describe('Entries REST api', function ( ) {
   before(function (done) {
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    self.env = require('../lib/server/env')( );
+    self.env = require('../src/lib/server/env')( );
     self.env.settings.authDefaultRoles = 'readable';
-    self.wares = require('../lib/middleware/')(self.env);
+    self.wares = require('../src/lib/middleware/')(self.env);
     self.archive = null;
     self.app = require('express')( );
     self.app.enable('api');
     bootevent(self.env, language).boot(function booted (ctx) {
       self.app.use('/', entries(self.app, self.wares, ctx, self.env));
-      self.archive = require('../lib/server/entries')(self.env, ctx);
+      self.archive = require('../src/lib/server/entries')(self.env, ctx);
       self.ctx = ctx;
       done();
     });

@@ -2,10 +2,10 @@
 
 require('should');
 
-const dayjs = require('@dayjs');
+const dayjs = require('../src/lib/utils/dayjs');
 
 describe('query', function ( ) {
-  var query = require('../lib/server/query');
+  var query = require('../src/lib/server/query');
 
   it('should provide default options', function ( ) {
     var opts = query();

@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const request = require('supertest');
-const language = require('../lib/language')(fs);
+const language = require('../src/lib/language')(fs);
 
 const bodyParser = require('body-parser');
 
@@ -10,20 +10,20 @@ require('should');
 
 describe('Alexa REST api', function ( ) {
   this.timeout(10000);
-  const apiRoot = require('../lib/api/root');
-  const api = require('../lib/api/');
+  const apiRoot = require('../src/lib/api/root');
+  const api = require('../src/lib/api/');
   before(function (done) {
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.settings.enable = ['alexa'];
     env.settings.authDefaultRoles = 'readable';
     env.api_secret = 'this is my long pass phrase';
-    this.wares = require('../lib/middleware/')(env);
+    this.wares = require('../src/lib/middleware/')(env);
     this.app = require('express')( );
     this.app.enable('api');
     var self = this;
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
+    require('../src/lib/server/bootevent')(env, language).boot(function booted (ctx) {
       self.app.use('/api', bodyParser({
         limit: 1048576 * 50
       }), apiRoot(env, ctx));

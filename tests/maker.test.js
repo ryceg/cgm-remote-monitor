@@ -1,8 +1,8 @@
 var should = require('should');
-var levels = require('../lib/levels');
+var levels = require('../src/lib/levels');
 
 describe('maker', function ( ) {
-  var maker = require('../lib/plugins/maker')(
+  var maker = require('../src/lib/plugins/maker')(
     {
       extendedSettings: {maker: {key: '12345'}}
       , levels: levels
@@ -65,7 +65,7 @@ describe('maker', function ( ) {
 
 
 describe('multi announcement maker', function ( ) {
-  var maker = require('../lib/plugins/maker')({extendedSettings: {maker: {key: 'use announcementKey instead', announcementKey: '12345 6789'}}});
+  var maker = require('../src/lib/plugins/maker')({extendedSettings: {maker: {key: 'use announcementKey instead', announcementKey: '12345 6789'}}});
 
   it('send 2 requests for the 2 keys', function (done) {
 

@@ -3,10 +3,10 @@
 var request = require('supertest');
 var load = require('./fixtures/load');
 var should = require('should');
-var language = require('../lib/language')();
+var language = require('../src/lib/language')();
 
 describe('authed REST api', function ( ) {
-  var entries = require('../lib/api/entries/');
+  var entries = require('../src/lib/api/entries/');
 
   this.timeout(20000);
 
@@ -14,17 +14,17 @@ describe('authed REST api', function ( ) {
     var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.settings.authDefaultRoles = 'readable';
-    this.wares = require('../lib/middleware/')(env);
+    this.wares = require('../src/lib/middleware/')(env);
     this.archive = null;
     this.app = require('express')( );
     this.app.enable('api');
     var self = this;
     self.known_key = known;
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
+    require('../src/lib/server/bootevent')(env, language).boot(function booted (ctx) {
       self.app.use('/', entries(self.app, self.wares, ctx, env));
-      self.archive = require('../lib/server/entries')(env, ctx);
+      self.archive = require('../src/lib/server/entries')(env, ctx);
 
       var creating = load('json');
       // creating.push({type: 'sgv', sgv: 100, date: Date.now()});
@@ -94,7 +94,7 @@ describe('authed REST api', function ( ) {
           .expect(200)
           .end(function (err, res) {
             res.body.should.be.instanceof(Array).and.have.lengthOf(1);
-            
+
             if (err) {
               done(err);
             } else {

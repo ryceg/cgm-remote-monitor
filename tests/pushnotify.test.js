@@ -1,16 +1,16 @@
 'use strict';
 
 var should = require('should');
-var levels = require('../lib/levels');
+var levels = require('../src/lib/levels');
 
 describe('pushnotify', function ( ) {
 
   it('send a pushover alarm, but only 1 time', function (done) {
-    var env = require('../lib/server/env')();
+    var env = require('../src/lib/server/env')();
     var ctx = {};
 
     ctx.levels = levels;
-    ctx.notifications = require('../lib/notifications')(env, ctx);
+    ctx.notifications = require('../src/lib/notifications')(env, ctx);
 
     var notify = {
       title: 'Warning, this is a test!'
@@ -30,7 +30,7 @@ describe('pushnotify', function ( ) {
         }
     };
 
-    ctx.pushnotify = require('../lib/server/pushnotify')(env, ctx);
+    ctx.pushnotify = require('../src/lib/server/pushnotify')(env, ctx);
 
     ctx.pushnotify.emitNotification(notify);
 
@@ -40,10 +40,10 @@ describe('pushnotify', function ( ) {
   });
 
   it('send a pushover notification, but only 1 time', function (done) {
-    var env = require('../lib/server/env')();
+    var env = require('../src/lib/server/env')();
     var ctx = {};
     ctx.levels = levels;
-    ctx.notifications = require('../lib/notifications')(env, ctx);
+    ctx.notifications = require('../src/lib/notifications')(env, ctx);
 
     var notify = {
       title: 'Sent from a test'
@@ -62,7 +62,7 @@ describe('pushnotify', function ( ) {
         }
     };
 
-    ctx.pushnotify = require('../lib/server/pushnotify')(env, ctx);
+    ctx.pushnotify = require('../src/lib/server/pushnotify')(env, ctx);
 
     ctx.pushnotify.emitNotification(notify);
 
@@ -72,11 +72,11 @@ describe('pushnotify', function ( ) {
   });
 
   it('send a pushover alarm, and then cancel', function (done) {
-    var env = require('../lib/server/env')();
+    var env = require('../src/lib/server/env')();
     var ctx = {};
     ctx.levels = levels;
 
-    ctx.notifications = require('../lib/notifications')(env, ctx);
+    ctx.notifications = require('../src/lib/notifications')(env, ctx);
 
     var notify = {
       title: 'Warning, this is a test!'
@@ -99,7 +99,7 @@ describe('pushnotify', function ( ) {
       }
     };
 
-    ctx.pushnotify = require('../lib/server/pushnotify')(env, ctx);
+    ctx.pushnotify = require('../src/lib/server/pushnotify')(env, ctx);
 
     //first send the warning
     ctx.pushnotify.emitNotification(notify);

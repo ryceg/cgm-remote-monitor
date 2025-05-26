@@ -8,7 +8,7 @@ describe('API3 output renderers', function() {
     , testConst = require('./fixtures/api3/const.json')
     , instance = require('./fixtures/api3/instance')
     , authSubject = require('./fixtures/api3/authSubject')
-    , opTools = require('../lib/api3/shared/operationTools')
+    , opTools = require('../src/lib/api3/shared/operationTools')
     , xml2js = require('xml2js')
     , csvParse = require('csv-parse/lib/sync')
     ;

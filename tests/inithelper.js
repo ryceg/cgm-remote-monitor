@@ -7,9 +7,9 @@ const relativeTime = require("dayjs/plugin/relativeTime");
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(relativeTime);
-const language = require('../lib/language')(fs);
-const settings = require('../lib/settings')();
-const levels = require('../lib/levels');
+const language = require('../src/lib/language')(fs);
+const settings = require('../src/lib/settings')();
+const levels = require('../src/lib/levels');
 
 function helper() {
 

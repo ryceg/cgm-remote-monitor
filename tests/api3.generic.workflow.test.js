@@ -8,7 +8,7 @@ describe('Generic REST API3', function() {
     , testConst = require('./fixtures/api3/const.json')
     , instance = require('./fixtures/api3/instance')
     , authSubject = require('./fixtures/api3/authSubject')
-    , opTools = require('../lib/api3/shared/operationTools')
+    , opTools = require('../src/lib/api3/shared/operationTools')
     ;
 
   self.urlLastModified = '/api/v3/lastModified';

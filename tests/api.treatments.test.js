@@ -2,8 +2,8 @@
 
 var request = require('supertest');
 var should = require('should');
-var language = require('../lib/language')();
-const _dayjs = require('@dayjs');
+var language = require('../src/lib/language')();
+const _dayjs = require('../src/lib/utils/dayjs');
 
 describe('Treatment API', function ( ) {
   this.timeout(10000);
@@ -11,18 +11,18 @@ describe('Treatment API', function ( ) {
 
   var api_secret_hash = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
 
-  var api = require('../frontend/lib/api');
+  var api = require('../src/lib/api');
   beforeEach(function (done) {
     process.env.API_SECRET = 'this is my long pass phrase';
-    self.env = require('../lib/server/env')();
+    self.env = require('../src/lib/server/env')();
     self.env.settings.authDefaultRoles = 'readable';
     self.env.settings.enable = ['careportal', 'api'];
-    this.wares = require('../lib/middleware/')(self.env);
+    this.wares = require('../src/lib/middleware/')(self.env);
     self.app = require('express')();
     self.app.enable('api');
-    require('../lib/server/bootevent')(self.env, language).boot(function booted(ctx) {
+    require('../src/lib/server/bootevent')(self.env, language).boot(function booted(ctx) {
       self.ctx = ctx;
-      self.ctx.ddata = require('../lib/data/ddata')();
+      self.ctx.ddata = require('../src/lib/data/ddata')();
       self.app.use('/api', api(self.env, ctx));
       done();
     });

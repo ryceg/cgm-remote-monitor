@@ -1,17 +1,17 @@
 'use strict';
 
 var request = require('supertest');
-var language = require('../lib/language')();
+var language = require('../src/lib/language')();
 require('should');
 
 describe('verifyauth', function ( ) {
-  var api = require('../lib/api/');
+  var api = require('../src/lib/api/');
 
   this.timeout(25000);
 
   var scope = this;
   function setup_app (env, fn) {
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
+    require('../src/lib/server/bootevent')(env, language).boot(function booted (ctx) {
       ctx.app = api(env, ctx);
       scope.app = ctx.app;
       fn(ctx);
@@ -27,7 +27,7 @@ describe('verifyauth', function ( ) {
     var known512 = '8c8743d38cbe00debe4b3ba8d0ffbb85e4716c982a61bb9e57bab203178e3718b2965831c1a5e42b9da16f082fdf8a6cecf993b49ed67e3a8b1cd475885d8070';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.enclave.isApiKey(known).should.equal(true);
     env.enclave.isApiKey(known512).should.equal(true);
     setup_app(env, function (ctx) {
@@ -41,7 +41,7 @@ describe('verifyauth', function ( ) {
     var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.enclave.isApiKey(known).should.equal(true);
     setup_app(env, function (ctx) {
       ctx.app.enabled('api').should.equal(true);
@@ -61,7 +61,7 @@ describe('verifyauth', function ( ) {
     var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.enclave.isApiKey(known).should.equal(true);
     setup_app(env, function (ctx) {
       ctx.app.enabled('api').should.equal(true);
@@ -90,7 +90,7 @@ describe('verifyauth', function ( ) {
     var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.enclave.isApiKey(known).should.equal(true);
     setup_app(env, function (ctx) {
       ctx.app.enabled('api').should.equal(true);

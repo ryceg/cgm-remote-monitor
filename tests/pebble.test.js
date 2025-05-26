@@ -2,7 +2,7 @@
 
 var request = require('supertest');
 var should = require('should');
-var language = require('../lib/language')();
+var language = require('../src/lib/language')();
 
 //Mocked ctx
 var ctx = {};
@@ -18,7 +18,7 @@ function updateMills (entries) {
   return entries;
 }
 
-ctx.ddata = require('../lib/data/ddata')();
+ctx.ddata = require('../src/lib/data/ddata')();
 ctx.ddata.sgvs = updateMills([
   { device: 'dexcom',
     mgdl: 91,
@@ -84,16 +84,16 @@ ctx.ddata.treatments = updateMills([
 
 ctx.ddata.devicestatus = [{uploader: {battery: 100}}];
 
-var bootevent = require('../lib/server/bootevent');
+var bootevent = require('../src/lib/server/bootevent');
 describe('Pebble Endpoint', function ( ) {
 
   this.timeout(10000);
 
-  var pebble = require('../lib/server/pebble');
+  var pebble = require('../src/lib/server/pebble');
   before(function (done) {
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.settings.authDefaultRoles = 'readable';
     this.app = require('express')( );
     this.app.enable('api');
@@ -226,11 +226,11 @@ describe('Pebble Endpoint', function ( ) {
 });
 
 describe('Pebble Endpoint with Raw and IOB and COB', function ( ) {
-  var pebbleRaw = require('../lib/server/pebble');
+  var pebbleRaw = require('../src/lib/server/pebble');
   before(function (done) {
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')( );
+    var env = require('../src/lib/server/env')( );
     env.settings.enable = ['rawbg', 'iob', 'cob'];
     env.settings.authDefaultRoles = 'readable';
     this.appRaw = require('express')( );

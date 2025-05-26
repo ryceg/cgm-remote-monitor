@@ -5,8 +5,8 @@
 require('should');
 
 describe('dateTools', function() {
-  const dateTools = require('../lib/api3/shared/dateTools');
-  const apiConst = require('../lib/api3/const.json');
+  const dateTools = require('../src/lib/api3/shared/dateTools');
+  const apiConst = require('../src/lib/api3/const.json');
 
   describe('floorSeconds', function() {
     it('should floor milliseconds to whole seconds', function() {

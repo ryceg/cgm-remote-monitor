@@ -28,7 +28,7 @@ describe('Basic REST API3', function() {
       .get('/api/v3/version')
       .expect(200);
 
-    const apiConst = require('../lib/api3/const.json')
+    const apiConst = require('../src/lib/api3/const.json')
       , software = require('../package.json')
       , result = res.body.result;
 

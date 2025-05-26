@@ -4,7 +4,7 @@ var should = require('should');
 
 describe('openaps storage', function () {
 
-  var env = require('../lib/server/env')();
+  var env = require('../src/lib/server/env')();
 
 
   before(function (done) {
@@ -14,7 +14,7 @@ describe('openaps storage', function () {
   });
 
   it('The module class should be OK.', function (done) {
-    require('../lib/storage/openaps-storage')(env, function callback (err, storage) {
+    require('../src/lib/storage/openaps-storage')(env, function callback (err, storage) {
       should.not.exist(err);
       should.exist(storage.collection);
       should.exist(storage.ensureIndexes);
@@ -23,7 +23,7 @@ describe('openaps storage', function () {
   });
 
   it('find sgv entries', function (done) {
-    require('../lib/storage/openaps-storage')(env, function callback (err, storage) {
+    require('../src/lib/storage/openaps-storage')(env, function callback (err, storage) {
       should.not.exist(err);
       should.exist(storage.collection);
 
@@ -40,7 +40,7 @@ describe('openaps storage', function () {
   });
 
   it('find cal entries', function (done) {
-    require('../lib/storage/openaps-storage')(env, function callback (err, storage) {
+    require('../src/lib/storage/openaps-storage')(env, function callback (err, storage) {
       should.not.exist(err);
       should.exist(storage.collection);
 
@@ -57,7 +57,7 @@ describe('openaps storage', function () {
   });
 
   it('find devicestatus entries', function (done) {
-    require('../lib/storage/openaps-storage')(env, function callback (err, storage) {
+    require('../src/lib/storage/openaps-storage')(env, function callback (err, storage) {
       should.not.exist(err);
       should.exist(storage.collection);
 
@@ -74,7 +74,7 @@ describe('openaps storage', function () {
   });
 
   it('find treatments', function (done) {
-    require('../lib/storage/openaps-storage')(env, function callback (err, storage) {
+    require('../src/lib/storage/openaps-storage')(env, function callback (err, storage) {
       should.not.exist(err);
       should.exist(storage.collection);
 
@@ -95,7 +95,7 @@ describe('openaps storage', function () {
     should.not.exist(env.storageURI);
 
     (function () {
-      return require('../lib/storage/openaps-storage')(env);
+      return require('../src/lib/storage/openaps-storage')(env);
     }).should.throw('openaps config uri is missing or invalid');
 
     done();
@@ -105,7 +105,7 @@ describe('openaps storage', function () {
     env.storageURI = 'This is not an openaps config path';
 
     (function () {
-      return require('../lib/storage/openaps-storage')(env);
+      return require('../src/lib/storage/openaps-storage')(env);
     }).should.throw(Error);
 
     done();

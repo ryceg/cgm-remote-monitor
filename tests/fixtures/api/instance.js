@@ -2,8 +2,8 @@
 
 const fs = require('fs')
   , path = require('path')
-  , language = require('../../../lib/language')()
-  , apiRoot = require('../../../lib/api/root')
+  , language = require('@language')()
+  , apiRoot = require('@lib/api/root')
   , http = require('http')
   , https = require('https')
   ;
@@ -22,7 +22,7 @@ function configure () {
     process.env.API_SECRET = apiSecret;
 
     process.env.HOSTNAME = 'localhost';
-    const env = require('../../../lib/server/env')();
+    const env = require('@lib/server/env')();
 
     if (useHttps) {
       env.ssl = {
@@ -57,13 +57,13 @@ function configure () {
 
         instance.env = self.prepareEnv({ apiSecret, useHttps, authDefaultRoles, enable });
 
-        self.wares = require('../../../lib/middleware/')(instance.env);
+        self.wares = require('@lib/middleware/')(instance.env);
         instance.app = require('express')();
         instance.app.enable('api');
 
-        require('../../../lib/server/bootevent')(instance.env, language).boot(function booted (ctx) {
+        require('@lib/server/bootevent')(instance.env, language).boot(function booted (ctx) {
           instance.ctx = ctx;
-          instance.ctx.ddata = require('../../../lib/data/ddata')();
+          instance.ctx.ddata = require('@lib/data/ddata')();
           instance.ctx.apiRootApp = apiRoot(instance.env, ctx);
 
           instance.app.use('/api', instance.ctx.apiRootApp);

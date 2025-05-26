@@ -3,7 +3,7 @@
 var should = require('should');
 
 describe('bridge', function ( ) {
-  var bridge = require('../lib/plugins/bridge');
+  var bridge = require('../src/lib/plugins/bridge');
 
   var env = {
     extendedSettings: {

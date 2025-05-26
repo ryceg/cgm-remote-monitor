@@ -2,7 +2,7 @@
 
 const request = require('supertest');
 const should = require('should');
-const language = require('../lib/language')();
+const language = require('../src/lib/language')();
 //const io = require('socket.io-client');
 
 describe('API_SECRET', function() {
@@ -30,8 +30,8 @@ describe('API_SECRET', function() {
   });
 
   function setup_app (env, fn) {
-    api = require('../lib/api/');
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
+    api = require('../src/lib/api/');
+    require('../src/lib/server/bootevent')(env, language).boot(function booted (ctx) {
       ctx.app = api(env, ctx);
       scope.app = ctx.app;
       scope.entries = ctx.entries;
@@ -40,16 +40,16 @@ describe('API_SECRET', function() {
   }
 
   function setup_big_app (env, fn) {
-    api = require('../lib/api/');
-    require('../lib/server/bootevent')(env, language).boot(function booted (ctx) {
+    api = require('../src/lib/api/');
+    require('../src/lib/server/bootevent')(env, language).boot(function booted (ctx) {
       ctx.app = api(env, ctx);
       scope.app = ctx.app;
       scope.entries = ctx.entries;
 
-      app = require('../lib/server/app')(env, ctx);
+      app = require('../src/lib/server/app')(env, ctx);
       server = require('http').createServer(app);
       listener = server.listen(1337, 'localhost');
-      websocket = require('../lib/server/websocket')(env, ctx, server);
+      websocket = require('../src/lib/server/websocket')(env, ctx, server);
 
       fn(ctx);
     });
@@ -60,7 +60,7 @@ describe('API_SECRET', function() {
 
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')();
+    var env = require('../src/lib/server/env')();
 
     env.enclave.isApiKey(known).should.equal(true);
 
@@ -80,7 +80,7 @@ describe('API_SECRET', function() {
     var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')();
+    var env = require('../src/lib/server/env')();
     env.enclave.isApiKey(known).should.equal(true);
     setup_app(env, function(ctx) {
       ctx.app.enabled('api').should.equal(true);
@@ -97,7 +97,7 @@ describe('API_SECRET', function() {
   it('should not work short', function() {
     delete process.env.API_SECRET;
     process.env.API_SECRET = 'tooshort';
-    var env = require('../lib/server/env')();
+    var env = require('../src/lib/server/env')();
     should.not.exist(env.api_secret);
     env.err[0].desc.should.startWith('API_SECRET should be at least');
   });
@@ -130,7 +130,7 @@ describe('API_SECRET', function() {
 
     var known = 'b723e97aa97846eb92d5264f084b2823f57c4aa1';
     process.env.API_SECRET = 'this is my long pass phrase';
-    var env = require('../lib/server/env')();
+    var env = require('../src/lib/server/env')();
 
     setup_big_app(env, function(ctx) {
 

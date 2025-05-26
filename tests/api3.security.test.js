@@ -2,7 +2,7 @@
 'use strict';
 
 const request = require('supertest')
-  , apiConst = require('../lib/api3/const.json')
+  , apiConst = require('../src/lib/api3/const.json')
   ;
 require('should');
 

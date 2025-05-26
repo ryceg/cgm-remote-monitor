@@ -7,7 +7,7 @@ require('should');
 describe('Socket.IO in REST API3', function() {
   const self = this
     , testConst = require('./fixtures/api3/const.json')
-    , apiConst = require('../lib/api3/const.json')
+    , apiConst = require('../src/lib/api3/const.json')
     , instance = require('./fixtures/api3/instance')
     , authSubject = require('./fixtures/api3/authSubject')
     , utils = require('./fixtures/api3/utils')

@@ -1,7 +1,7 @@
 'use strict';
 
 var should = require('should');
-var levels = require('../lib/levels');
+var levels = require('../src/lib/levels');
 
 var ctx = {
   levels:levels
@@ -24,7 +24,7 @@ describe('pushover', function ( ) {
     , levels:levels
   };
 
-  var pushover = require('../lib/plugins/pushover')(env, ctx);
+  var pushover = require('../src/lib/plugins/pushover')(env, ctx);
 
   it('convert a warning to a message and send it', function (done) {
 
@@ -83,7 +83,7 @@ describe('support legacy pushover groupkey', function ( ) {
     , levels: levels
   };
 
-  var pushover = require('../lib/plugins/pushover')(env, ctx);
+  var pushover = require('../src/lib/plugins/pushover')(env, ctx);
 
   it('send', function (done) {
 
@@ -120,7 +120,7 @@ describe('multi announcement pushover', function ( ) {
     , levels: levels
   };
 
-  var pushover = require('../lib/plugins/pushover')(env, ctx);
+  var pushover = require('../src/lib/plugins/pushover')(env, ctx);
 
   it('send multiple pushes if there are multiple keys', function (done) {
 
@@ -165,7 +165,7 @@ describe('announcement only pushover', function ( ) {
     , levels: levels
   };
 
-  var pushover = require('../lib/plugins/pushover')(env, ctx);
+  var pushover = require('../src/lib/plugins/pushover')(env, ctx);
 
   it('send push if announcement', function (done) {
 
