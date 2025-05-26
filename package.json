@@ -28,7 +28,7 @@
   "scripts": {
     "start": "node src/lib/server/server.js",
     "test": "env-cmd -f ./my.test.env mocha --timeout 5000 --require ./tests/hooks.js -exit ./tests/*.test.js",
-    "test-single": "env-cmd -f ./my.test.env mocha --timeout 5000 --require ./tests/hooks.js --exit ./tests/$TEST.test.js",
+    "test-single": "env-cmd -f ./my.test.env mocha --timeout 5000 --require ./tests/hooks.js --exit ./tests/%TEST%.test.js",
     "test-ci": "env-cmd -f ./tests/ci.test.env nyc --reporter=lcov --reporter=text-summary mocha --timeout 5000 --require ./tests/hooks.js --exit ./tests/*.test.js",
     "env": "env",
     "postinstall": "cd src/bundle && vite build --config ../vite.config.ts && cd ../.. && npm run-script post-generate-keys",
@@ -140,6 +140,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.9",
     "@types/tough-cookie": "^4.0.0",
     "axios": "^0.21.1",
     "babel-eslint": "^10.1.0",

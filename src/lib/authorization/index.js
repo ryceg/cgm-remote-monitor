@@ -181,12 +181,12 @@ function init (env, ctx) {
 
     // If we reach this point, we must be dealing with a role based token
 
-    let token = null;
-
-    // Tokens have to be well formed JWTs
+    let token = null;    // Tokens have to be well formed JWTs
     try {
       const verified = env.enclave.verifyJWT(data.token);
-      token = verified.accessToken;
+      if (verified && verified.accessToken) {
+        token = verified.accessToken;
+      }
     } catch (err) {
       console.error('Error verifying JWT token:', err);
     }
@@ -275,9 +275,12 @@ function init (env, ctx) {
    * Generates a JWT based on an access token / authorizes an existing token
    *
    * @param {*} accessToken token to be used for generating a JWT for the client
-   */
-  authorization.authorize = function authorize (accessToken) {
+   */  authorization.authorize = function authorize (accessToken) {
 
+    // Ensure accessToken is a non-empty string
+    if (typeof accessToken !== 'string' || !accessToken.trim()) {
+      return null;
+    }
 
     let userToken = accessToken;
     const decodedToken = env.enclave.verifyJWT(accessToken);
