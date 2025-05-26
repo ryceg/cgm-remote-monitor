@@ -20,7 +20,7 @@ describe('Bulk Operations Performance Test', function() {
     self.url = '/api/v3/treatments';
     self.urlBulk = `${self.url}/bulk`;
 
-    let authResult = await authSubject(self.instance.ctx.authorization.storage);
+    let authResult = await authSubject(self.instance.ctx.authorization.storage, ['create', 'delete'], self.app);
     self.subject = authResult.subject;
     self.jwt = authResult.jwt;
   });
