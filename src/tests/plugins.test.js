@@ -4,7 +4,7 @@ var should = require("should");
 
 describe("Plugins", function () {
   it("should find client plugins, but not server only plugins", function (done) {
-    var plugins = require("../lib/plugins/")({
+    var plugins = require("../lib/plugins")({
       settings: {},
       language: require("../lib/language")(),
     }).registerClientDefaults();
@@ -19,7 +19,7 @@ describe("Plugins", function () {
   });
 
   it("should find sever plugins, but not client only plugins", function (done) {
-    var plugins = require("../lib/plugins/")({
+    var plugins = require("../lib/plugins")({
       settings: {},
       language: require("../lib/language")(),
     }).registerServerDefaults();

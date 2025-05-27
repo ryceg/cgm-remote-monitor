@@ -2,7 +2,7 @@
 
 var fs = require("fs"),
   language = require("../../../lib/language")(),
-  api = require("../../../lib/api3/"),
+  api = require("../../../lib/api3"),
   http = require("http"),
   https = require("https"),
   request = require("supertest"),
@@ -112,7 +112,7 @@ function configure() {
           enable,
         });
 
-        self.wares = require("../../../lib/middleware/")(instance.env);
+        self.wares = require("../../../lib/middleware")(instance.env);
         instance.app = require("express")();
         instance.app.enable("api");
 

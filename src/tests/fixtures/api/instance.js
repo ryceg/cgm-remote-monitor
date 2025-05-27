@@ -58,7 +58,7 @@ function configure() {
           enable,
         });
 
-        self.wares = require("../../../lib/middleware/")(instance.env);
+        self.wares = require("../../../lib/middleware")(instance.env);
         instance.app = require("express")();
         instance.app.enable("api");
 

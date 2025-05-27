@@ -17,7 +17,7 @@ function headless(binding = {}) {
 
     const htmlFile = options.htmlFile || path.resolve("./bundle/index.html");
     const serverSettings =
-      options.serverSettings || require("./default-server-settings");
+      options.serverSettings || require("./default-server-settings.js");
 
     if (options.mockAjax === true) options.mockAjax = {};
     let mockAjaxResponses = options.mockAjax || {};

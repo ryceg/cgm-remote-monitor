@@ -1,13 +1,15 @@
 import { defineConfig } from "vite";
 import commonjs from "vite-plugin-commonjs";
 import inject from "@rollup/plugin-inject";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { resolve } from "path";
-
+/// <reference types="vitest" />
 const isDevelopment = process.env.NODE_ENV === "development";
 
 export default defineConfig({
   root: resolve(__dirname, "bundle"),
   appType: "mpa",
+
   publicDir: "public",  build: {
     sourcemap: true,
     minify: !isDevelopment,
@@ -46,6 +48,15 @@ export default defineConfig({
       $: "jquery",
       jQuery: "jquery",
     }),
+
+    nodePolyfills({
+      include: [
+        "crypto",
+        "stream",
+        "process", //necessary for `crypto` > `browserify-sign` > `readable-stream` to work
+      ],
+      globals: { Buffer: true },
+    }),
   ],
   resolve: {
     alias: {
@@ -83,5 +94,8 @@ export default defineConfig({
       // that were handled by the previous generic '/api/' rule,
       // you might need to add a separate rule for them.
     }
+
   },
+
+
 });
